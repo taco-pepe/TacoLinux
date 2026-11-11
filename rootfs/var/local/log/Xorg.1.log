@@ -1,0 +1,12 @@
+[2026-09-08 17:53:19] _XSERVTransSocketUNIXCreateListener: ...SocketCreateListener() failed
+[2026-09-08 17:53:19] _XSERVTransMakeAllCOTSServerListeners: server already running
+[2026-09-08 17:53:19] (EE) 
+Fatal server error:
+[2026-09-08 17:53:19] (EE) Cannot establish any listening sockets - Make sure an X server isn't already running(EE) 
+[2026-09-08 17:53:19] (EE) 
+Please consult the The X.Org Foundation support 
+	 at http://wiki.x.org
+ for help. 
+[2026-09-08 17:53:19] (EE) Please also check the log file at "/var/local/log/Xorg.1.log" for additional information.
+[2026-09-08 17:53:19] (EE) 
+[2026-09-08 17:53:19] (EE) Server terminated with error (1). Closing log file.

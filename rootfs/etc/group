@@ -1,0 +1,9 @@
+root:x:0:
+adm:x:4:
+utmp:x:22:
+taco:x:1000:tty,dialout
+wheel:x:10:taco
+video:x:44:taco
+input:x:973:taco
+tty:x:5:taco
+dialout:x:18:taco

@@ -1,0 +1,503 @@
+#!/bin/bash
+# TacoLinux Installer - ncurses TUI (dialog), Debian-installer / nmtui style.
+# Runs in a black xterm opened by dwm. All disk tooling is baked into the
+# live rootfs (copied from the host), so a base install is fully offline.
+# Nix is used only for the desktop/window-manager + extra packages chosen here.
+
+export LC_ALL=C
+export TERM=${TERM:-xterm}
+export DIALOGRC=/etc/dialogrc
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+BT="TacoLinux Installer"
+LOG=/tmp/taco-installer.log
+INSTMNT=/mnt
+: > "$LOG"
+
+if [ -z "$AUTOTEST" ] && [ ! -t 0 ]; then exec </dev/tty 2>/dev/null; fi
+
+# ---------------------------------------------------------------- dialog ui --
+d_msg()   { dialog --backtitle "$BT" --title "$1" --msgbox "$2" 16 72; }
+d_yesno() { dialog --backtitle "$BT" --title "$1" --yesno "$2" 13 72; }
+d_menu()  { dialog --backtitle "$BT" --title "$1" --menu "$2" 0 0 0 "${@:3}" 3>&1 1>&2 2>&3; }
+d_input() { dialog --backtitle "$BT" --title "$1" --inputbox "$2" 10 72 "$3" 3>&1 1>&2 2>&3; }
+d_pass()  { dialog --backtitle "$BT" --title "$1" --insecure --passwordbox "$2" 10 72 3>&1 1>&2 2>&3; }
+d_check() { dialog --backtitle "$BT" --title "$1" --checklist "$2" 0 0 0 "${@:3}" 3>&1 1>&2 2>&3; }
+d_form()  { dialog --backtitle "$BT" --title "$1" --form "$2" 0 0 0 "${@:3}" 3>&1 1>&2 2>&3; }
+
+run_gauge() {
+    # run_gauge "title" cmd args...  -> progress + live status line from $LOG
+    local title=$1; shift
+    if [ -n "$AUTOTEST" ]; then
+        echo ">>> $title"
+        "$@" >>"$LOG" 2>&1
+        return $?
+    fi
+    : >"$LOG"; rm -f "$LOG.rc"
+    ( "$@" >"$LOG" 2>&1; echo $? >"$LOG.rc" ) &
+    local pid=$!
+    {
+        local p=1
+        printf '1\n'
+        while kill -0 "$pid" 2>/dev/null; do
+            local m
+            m=$(tail -n1 "$LOG" 2>/dev/null | tr -d '\r')
+            printf '%s\n' "$p"
+            [ -n "$m" ] && printf '# %s\n' "${m:0:66}"
+            [ "$p" -lt 96 ] && p=$((p+2))
+            sleep 0.4
+        done
+        printf '100\n'
+    } | dialog --backtitle "$BT" --title "$title" --gauge "" 9 70 0
+    wait "$pid" 2>/dev/null
+    local rc
+    rc=$(cat "$LOG.rc" 2>/dev/null || echo 1)
+    return "$rc"
+}
+
+die() {
+    if [ -n "$AUTOTEST" ]; then echo "FATAL: $1" >&2
+    else dialog --backtitle "$BT" --title "Error" --msgbox "$1" 14 72; fi
+    exit 1
+}
+msg() { if [ -n "$AUTOTEST" ]; then echo "$1"; else d_msg "TacoLinux" "$1"; fi; }
+
+need_tools() {
+    local m=""
+    for t in dialog parted mkfs.ext4 blkid lsblk findmnt parted rsync \
+             grub-install grub-mkconfig useradd chpasswd mkswap swapon; do
+        command -v "$t" >/dev/null 2>&1 || m="$m $t"
+    done
+    [ -n "$m" ] && die "Missing installer tools:$m"
+}
+
+# --------------------------------------------------------------- engine ------
+detect_uefi() { if [ -d /sys/firmware/efi ]; then UEFI=1; else UEFI=0; fi; }
+
+disk_menu_items() {
+    lsblk -dnpo NAME,SIZE,TYPE 2>/dev/null | while read -r n s t; do
+        [ "$t" = disk ] && printf '%s "%s" ' "$n" "$s"
+    done
+}
+
+partition_auto() {
+    local t=$1
+    if [ "$UEFI" = 1 ]; then
+        sudo parted -s "$t" mklabel gpt || return 1
+        sudo parted -s "$t" mkpart ESP fat32 1MiB 513MiB || return 1
+        sudo parted -s "$t" set 1 esp on || return 1
+        sudo parted -s "$t" mkpart root "$FS" 513MiB 100% || return 1
+        ROOTPART="${t}2"; EFIPART="${t}1"; SWAPPART=
+    else
+        sudo parted -s "$t" mklabel msdos || return 1
+        sudo parted -s "$t" mkpart primary "$FS" 1MiB 100% || return 1
+        ROOTPART="${t}1"; EFIPART=; SWAPPART=
+    fi
+    return 0
+}
+
+format_parts() {
+    sudo mkfs."$FS" -F "$ROOTPART" >/dev/null || return 1
+    [ -n "$EFIPART" ] && { sudo mkfs.fat -F32 "$EFIPART" >/dev/null || return 1; }
+    [ -n "$SWAPPART" ] && { sudo mkswap "$SWAPPART" >/dev/null || return 1; }
+    return 0
+}
+
+mount_all() {
+    sudo mkdir -p "$INSTMNT/boot" || return 1
+    sudo mount "$ROOTPART" "$INSTMNT" || return 1
+    [ -n "$EFIPART" ] && { sudo mount "$EFIPART" "$INSTMNT/boot" || return 1; }
+    [ -n "$SWAPPART" ] && sudo swapon "$SWAPPART"
+    sudo mount -t proc proc "$INSTMNT/proc" 2>/dev/null
+    sudo mount -t sysfs sysfs "$INSTMNT/sys" 2>/dev/null
+    sudo mount -t devtmpfs devtmpfs "$INSTMNT/dev" 2>/dev/null
+    return 0
+}
+
+copy_root() {
+    sudo rsync -aHAXX --numeric-ids / "$INSTMNT/" \
+        --exclude='/proc/*' --exclude='/sys/*' --exclude='/dev/*' \
+        --exclude='/run/*' --exclude='/tmp/*' --exclude='/mnt/*' \
+        --exclude='/boot/*' \
+        --exclude='/nix' --exclude='/usr/share/tacolinux' \
+        --exclude='/etc/fstab' --exclude='/etc/hostname' --exclude='/etc/machine-id' \
+        --exclude='home/*/.ssh/*' --exclude='root/.ssh/*' \
+        --exclude='/etc/ssh/ssh_host_*' \
+        || return 1
+}
+
+write_fstab() {
+    local f="$INSTMNT/etc/fstab" ruid
+    ruid=$(sudo blkid -s UUID -o value "$ROOTPART")
+    { echo "# generated by taco-installer";
+      echo "UUID=$ruid  /  $FS  rw,relatime 0 1"; } | sudo tee "$f" >/dev/null
+    if [ -n "$EFIPART" ]; then
+        local euid; euid=$(sudo blkid -s UUID -o value "$EFIPART")
+        echo "UUID=$euid  /boot  vfat  rw,relatime,fmask=0022,dmask=0022 0 2" | sudo tee -a "$f" >/dev/null
+    fi
+    if [ -n "$SWAPPART" ]; then
+        local suid; suid=$(sudo blkid -s UUID -o value "$SWAPPART")
+        echo "UUID=$suid  none  swap  sw 0 0" | sudo tee -a "$f" >/dev/null
+    fi
+}
+
+create_users() {
+    local name=$1 real=$2 pass=$3 rpass=$4 host=$5
+    echo "$host" | sudo tee "$INSTMNT/etc/hostname" >/dev/null
+    sudo useradd -R "$INSTMNT" -m -G wheel,video,audio,storage,power \
+        -s /bin/bash -c "$real" "$name" || return 1
+    echo "$name:$pass" | sudo chpasswd -R "$INSTMNT" || return 1
+    echo "root:$rpass" | sudo chpasswd -R "$INSTMNT" || return 1
+    printf '%s  ALL=(ALL:ALL) NOPASSWD: ALL\n' "$name" | \
+        sudo tee -a "$INSTMNT/etc/sudoers" >/dev/null
+}
+
+session_cmd() {
+    case "$1" in
+        dwm) echo "exec dwm";;
+        i3) echo "exec i3";;
+        openbox) echo "exec openbox";;
+        bspwm) echo "exec bspwm";;
+        sway) echo "exec sway";;
+        xfce) echo "exec dbus-run-session startxfce4";;
+        plasma) echo "exec dbus-run-session startplasma-x11";;
+        gnome) echo "exec dbus-run-session gnome-session";;
+        *) echo "";;
+    esac
+}
+
+wm_nix_attrs() {
+    case "$1" in
+        i3) echo "i3 i3status";;
+        openbox) echo "openbox";;
+        bspwm) echo "bspwm sxhkd";;
+        sway) echo "sway seatd";;
+        xfce) echo "xfce4-14.xfce4-session xfce4-14.xfce4-panel";;
+        plasma) echo "kdePackages.plasma-desktop kdePackages.plasma-workspace";;
+        gnome) echo "gnome";;
+        *) echo "";;
+    esac
+}
+
+install_starter_dwm() {
+    for b in dwm tlaunch st; do
+        local p; p=$(command -v "$b") && sudo cp -Lf "$p" "$INSTMNT/usr/local/bin/$b"
+    done
+}
+
+write_kicker() {
+    local user=$1 wm=$2 uid=$3 session f="$INSTMNT/home/$user/.bash_profile"
+    session=$(session_cmd "$wm")
+    {
+        echo "# TacoLinux autostart (generated by taco-installer)"
+        echo "if [ -z \"\$DISPLAY\" ] && [ \"\$(tty)\" = /dev/tty1 ] && [ -z \"\${TMUX}\" ]; then"
+        if [ "$wm" = sway ]; then
+            echo "    exec sway"
+        elif [ -n "$session" ]; then
+            echo "    /usr/local/sbin/xlaunch &"
+            echo "    for i in \$(seq 1 60); do [ -S /tmp/.X11-unix/X0 ] && break; sleep 0.25; done"
+            echo "    export DISPLAY=:0"
+            echo "    $session"
+        else
+            echo "    exec bash"
+        fi
+        echo "fi"
+    } | sudo tee "$f" >/dev/null
+    sudo chown "$uid:$uid" "$f"
+    sudo chmod 644 "$f"
+}
+
+chroot_nix_install() {
+    local src=/usr/share/tacolinux/nix-2.34.7-x86_64-linux.tar.xz
+    [ -f "$src" ] || return 1
+    (cd "$INSTMNT" && sudo tar xf "$src") || return 1
+    echo yes | sudo chroot "$INSTMNT" sh \
+        /nix-2.34.7-x86_64-linux/install --no-daemon >/dev/null 2>&1
+    local rc=${PIPESTATUS[1]}
+    sudo rm -rf "$INSTMNT/nix-2.34.7-x86_64-linux" "$INSTMNT/usr/share/tacolinux"
+    return $rc
+}
+
+install_nix_pkgs() {
+    local attrs="$1" list
+    [ -z "$attrs" ] && return 0
+    list=$(printf '%s' "$attrs" | tr ',' ' ')
+    sudo chroot "$INSTMNT" sh -c \
+        "/nix/var/nix/profiles/default/bin/nix profile add $list \
+           --profile /nix/var/nix/profiles/default >/dev/null 2>&1" || return 1
+}
+
+install_grub() {
+    local ts; ts=$(basename "$TARGET")
+    local P='export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin;'
+    if [ "$UEFI" = 1 ]; then
+        sudo chroot "$INSTMNT" /bin/bash -c \
+            "$P grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=TacoLinux --no-nvram" \
+            || return 1
+    else
+        sudo chroot "$INSTMNT" /bin/bash -c \
+            "$P grub-install --target=i386-pc /dev/$ts" || return 1
+    fi
+    sudo chroot "$INSTMNT" /bin/bash -c \
+        "$P grub-mkconfig -o /boot/grub/grub.cfg" >/dev/null 2>&1 || return 1
+}
+
+unmount_all() {
+    sudo umount "$INSTMNT/dev" 2>/dev/null
+    sudo umount "$INSTMNT/sys" 2>/dev/null
+    sudo umount "$INSTMNT/proc" 2>/dev/null
+    [ -n "$SWAPPART" ] && sudo swapoff "$SWAPPART" 2>/dev/null
+    sudo umount "$INSTMNT/boot" 2>/dev/null
+    sudo umount "$INSTMNT" 2>/dev/null
+    return 0
+}
+
+# --------------------------------------------------------------- TUI ---------
+tui_disk() {
+    while :; do
+        local items choice
+        items=$(disk_menu_items)
+        [ -z "$items" ] && die "No disks found."
+        choice=$(d_menu "Partition disks" "Select the disk to install TacoLinux on:" \
+            $items "RESCAN" "(re-scan disks)") || exit 0
+        [ "$choice" = RESCAN ] && continue
+        TARGET=$choice
+        break
+    done
+
+    local mode
+    mode=$(d_menu "Partitioning method" \
+        "How should $TARGET be partitioned?" \
+        "auto" "Guided - use the whole disk (recommended)" \
+        "manual" "Manual - run cfdisk yourself") || exit 0
+    DISK_MODE=$mode
+
+    local fs
+    fs=$(d_menu "Filesystem" "Filesystem for the root partition:" \
+        "ext4" "ext4 (default)" "xfs" "XFS" "btrfs" "Btrfs") || exit 0
+    FS=$fs
+
+    if [ "$DISK_MODE" = auto ]; then
+        local layout="root partition (BIOS)"
+        [ "$UEFI" = 1 ] && layout="EFI system partition + root"
+        d_yesno "Confirm" "The ENTIRE disk $TARGET will be erased and repartitioned.
+
+  Layout:     $layout
+  Filesystem: $FS
+
+Continue?" || exit 0
+    else
+        d_msg "Manual partitioning" "Opening cfdisk now. Create the partitions you
+want, then quit cfdisk to continue."
+        clear
+        sudo cfdisk "$TARGET"
+        ROOTPART=$(d_input "Root partition" "Root partition device:" "/dev/") || exit 0
+        EFIPART=$(d_input "EFI partition" "EFI system partition (blank if BIOS):" "") || :
+        SWAPPART=$(d_input "Swap" "Swap partition (blank for none):" "") || :
+        [ -n "$ROOTPART" ] || die "No root partition given."
+        d_yesno "Confirm" "Format $ROOTPART as $FS?
+${EFIPART:+(and $EFIPART as FAT32)}
+All data on those partitions is erased." || exit 0
+    fi
+}
+
+tui_user() {
+    local out
+    out=$(d_form "Set up users" "Create your account and name this computer:" \
+        "User name:"  1 1 "taco"     1 22 32 0 \
+        "Full name:"  2 1 "Taco User" 2 22 40 0 \
+        "Hostname:"   3 1 "tacolinux" 3 22 40 0) || exit 0
+    { read -r UN; read -r REAL; read -r HOST; } <<<"$out"
+    [ -n "$UN" ] || die "User name empty."
+    case "$UN" in *[!a-z_0-9]*) die "User name may only contain a-z 0-9 _";; esac
+    [ -n "$HOST" ] || HOST=tacolinux
+
+    local p1 p2
+    while :; do
+        p1=$(d_pass "Password for $UN" "Choose a password for $UN:") || exit 0
+        [ -n "$p1" ] || { d_msg "Password" "Password cannot be empty."; continue; }
+        p2=$(d_pass "Password for $UN" "Re-enter the password:") || exit 0
+        [ "$p1" = "$p2" ] && break
+        d_msg "Password" "Passwords do not match. Try again."
+    done
+    PW=$p1
+    local r1 r2
+    while :; do
+        r1=$(d_pass "Root password" "Choose the root password:") || exit 0
+        [ -n "$r1" ] || { d_msg "Password" "Password cannot be empty."; continue; }
+        r2=$(d_pass "Root password" "Re-enter the root password:") || exit 0
+        [ "$r1" = "$r2" ] && break
+        d_msg "Password" "Passwords do not match. Try again."
+    done
+    RPW=$r1
+}
+
+tui_desktop() {
+    WM=$(d_menu "Desktop environment" \
+        "Choose the desktop / window manager to install via Nix:" \
+        "dwm"     "dwm + TacoLinux launcher (live starter, no download)" \
+        "i3"      "i3 tiling WM + i3status" \
+        "openbox" "Openbox stacking WM" \
+        "bspwm"   "bspwm + sxhkd" \
+        "sway"    "Sway Wayland compositor" \
+        "xfce"    "XFCE desktop (X11)" \
+        "plasma"  "KDE Plasma desktop (X11)" \
+        "gnome"   "GNOME desktop" \
+        "none"    "No desktop (console only)") || exit 0
+}
+
+tui_packages() {
+    local chosen extra
+    chosen=$(d_check "Software selection" \
+        "Choose extra packages (installed with Nix):" \
+        "htop"    "process viewer"                       off \
+        "git"     "version control"                      off \
+        "ripgrep" "fast grep"                            off \
+        "fd"      "find replacement"                     off \
+        "bat"     "cat with wings"                       off \
+        "jq"      "JSON processor"                       off \
+        "neovim"  "editor"                               off \
+        "tmux"    "terminal multiplexer"                 off \
+        "python3" "Python"                               off \
+        "tree"    "directory tree"                       off \
+        "curl"    "HTTP client"                          off \
+        "cowsay"  "a talking cow"                        off) || exit 0
+    PCKGS=$(printf '%s' "$chosen" | tr -d '"')
+    extra=$(d_input "Extra packages" \
+        "More Nix attributes, space or comma separated (blank for none):" "") || :
+    [ -n "$extra" ] && PCKGS="${PCKGS:+$PCKGS,}$extra"
+    PCKGS=$(printf '%s' "$PCKGS" | tr ' ' ',')
+}
+
+tui_summary() {
+    local wmattrs; wmattrs=$(wm_nix_attrs "$WM")
+    d_yesno "Ready to install" "Please review the installation settings:
+
+  Disk:        $TARGET   ($DISK_MODE, $FS)
+  Root part:   ${ROOTPART:-auto}
+  EFI part:    ${EFIPART:-(none)}
+  User:        $UN ($REAL)
+  Hostname:    $HOST
+  Desktop:     $WM
+  Nix extras:  ${wmattrs} ${PCKGS:-(none)}
+
+ALL DATA on $TARGET will be erased. Start the installation?" || exit 0
+}
+
+tui_welcome() {
+    d_msg "Welcome" "Welcome to the TacoLinux installer.
+
+This will install TacoLinux to a disk of your choice:
+  * guided or manual partitioning
+  * your user account (with sudo)
+  * extra packages via Nix
+  * the desktop / window manager of your choice (via Nix)
+
+The current live desktop (dwm) is only a starter demo.
+
+Tools are baked into the live system, so the base install works offline." || exit 0
+}
+
+gather_tui() {
+    tui_welcome
+    tui_disk
+    tui_user
+    tui_desktop
+    tui_packages
+    tui_summary
+}
+
+gather_autotest() {
+    WM=${AUTOWM:-dwm}
+    PCKGS=${AUTOPKGS:-}
+    UN=${AUTOUSER:-taco}
+    REAL=${AUTOREAL:-Taco Tester}
+    PW=${AUTOPW:-verifyme1}
+    RPW=${AUTORPW:-verifyme1}
+    HOST=${AUTHOST:-tacolinux}
+    DISK_MODE=${AUTOMODE:-auto}
+    FS=${AUTOFS:-ext4}
+    TARGET=${AUTOTARGET:-/dev/vda}
+    detect_uefi
+    if [ -n "$AUTOEFIPART" ]; then
+        ROOTPART=$AUTOROOTPART; EFIPART=$AUTOEFIPART; SWAPPART=${AUTOSWAPPART:-}
+    elif [ "$DISK_MODE" = auto ]; then
+        partition_auto "$TARGET"
+    fi
+}
+
+# --------------------------------------------------------------- main --------
+run_install() {
+    if [ "$DISK_MODE" = auto ]; then
+        if [ "$UEFI" = 1 ]; then
+            ROOTPART="${TARGET}2"; EFIPART="${TARGET}1"; SWAPPART=
+        else
+            ROOTPART="${TARGET}1"; EFIPART=; SWAPPART=
+        fi
+        run_gauge "Partitioning $TARGET" partition_auto "$TARGET" \
+            || die "Partitioning failed: $(tail -n1 "$LOG")"
+    fi
+    run_gauge "Formatting partitions" format_parts \
+        || die "Formatting failed: $(tail -n1 "$LOG")"
+
+    run_gauge "Mounting $TARGET" mount_all || die "Mounting failed."
+
+    run_gauge "Copying the TacoLinux filesystem" copy_root \
+        || { unmount_all; die "Copy failed."; }
+
+    write_fstab
+    create_users "$UN" "$REAL" "$PW" "$RPW" "$HOST" \
+        || { unmount_all; die "User creation failed."; }
+
+    [ "$WM" = dwm ] && install_starter_dwm
+
+    local UID_
+    UID_=$(grep "^$UN:" "$INSTMNT/etc/passwd" 2>/dev/null | cut -d: -f3)
+    [ -n "$UID_" ] || UID_=1000
+    write_kicker "$UN" "$WM" "$UID_"
+
+    run_gauge "Installing the Nix store on the target" chroot_nix_install \
+        || msg "Note: the Nix base install reported a problem."
+
+    local wmattrs allattrs
+    wmattrs=$(wm_nix_attrs "$WM")
+    allattrs="${wmattrs}${PCKGS:+ $PCKGS}"
+    if [ -n "$(echo "$allattrs" | tr -d ' ')" ]; then
+        run_gauge "Installing desktop and packages via Nix" install_nix_pkgs "$allattrs" \
+            || msg "Note: some Nix packages may not have installed.
+You can add them later with:  sudo nix profile add nixpkgs#foo"
+    fi
+
+    run_gauge "Installing the bootloader" install_grub \
+        || { unmount_all; die "GRUB install failed."; }
+
+    unmount_all
+}
+
+main() {
+    need_tools
+    if [ -n "$AUTOTEST" ]; then
+        gather_autotest
+    else
+        gather_tui
+    fi
+    run_install
+    if [ -n "$AUTOTEST" ]; then
+        echo "INSTALL_COMPLETE TARGET=$TARGET USER=$UN WM=$WM FS=$FS"
+        exit 0
+    fi
+    if d_yesno "Finished" "Installation complete!
+
+  System:   $TARGET
+  User:     $UN
+  Hostname: $HOST
+  Desktop:  $WM
+
+Reboot now?"; then
+        sudo reboot
+    else
+        d_msg "TacoLinux" "You can reboot later with:  sudo reboot"
+    fi
+}
+
+main "$@"

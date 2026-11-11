@@ -1,0 +1,80 @@
+#!/bin/busybox sh
+
+export PATH=/bin:/sbin
+
+BB=/bin/busybox
+ROOT=/newroot
+
+$BB mount -t devtmpfs devtmpfs /dev
+$BB mount -t proc proc /proc
+$BB mount -t sysfs sysfs /sys
+
+echo "[TacoLinux] Alpine initramfs started"
+
+mkdir -p "$ROOT"
+
+# Wait for devices
+echo "[TacoLinux] Waiting for block devices..."
+$BB sleep 2
+
+# Find available partitions
+list_parts() {
+    for dev in /dev/sd* /dev/vd* /dev/nvme*n*p* /dev/mmcblk*p*; do
+        [ -b "$dev" ] || continue
+        [ "$dev" = "$SWAPDEV" ] && continue
+
+        info=$(/sbin/blkid "$dev" 2>/dev/null)
+        [ -n "$info" ] || continue
+
+        echo "$dev | $info"
+    done
+}
+
+echo
+echo "================================"
+echo "       TacoLinux Boot"
+echo "================================"
+echo
+echo "Available partitions:"
+echo
+
+list_parts
+
+echo
+echo "Enter the root partition (example: /dev/sda2)"
+printf "Root partition: "
+read ROOTDEV
+
+if [ ! -b "$ROOTDEV" ]; then
+    echo "[TacoLinux] ERROR: Invalid block device"
+    exec $BB sh
+fi
+
+echo "[TacoLinux] Mounting $ROOTDEV"
+
+if ! $BB mount -t ext4 -o rw "$ROOTDEV" "$ROOT"; then
+    echo "[TacoLinux] ERROR: Root mount failed"
+    exec $BB sh
+fi
+
+# Verify systemd exists
+if [ ! -x "$ROOT/usr/lib/systemd/systemd" ]; then
+    echo "[TacoLinux] ERROR: No systemd installation found!"
+    $BB umount "$ROOT"
+    exec $BB sh
+fi
+
+mkdir -p "$ROOT/dev" "$ROOT/proc" "$ROOT/sys" "$ROOT/run"
+
+# Move kernel filesystems
+$BB mount --move /dev "$ROOT/dev" || exec $BB sh
+$BB mount --move /proc "$ROOT/proc" || exec $BB sh
+$BB mount --move /sys "$ROOT/sys" || exec $BB sh
+
+echo
+echo "[TacoLinux] Switching to TacoLinux systemd"
+
+exec /sbin/switch_root "$ROOT" /usr/lib/systemd/systemd
+
+echo "[TacoLinux] ERROR: switch_root failed"
+exec $BB sh

@@ -1,0 +1,10 @@
+[Match]
+Name=en*
+Name=eth*
+
+[Network]
+DHCP=yes
+
+[DHCP]
+UseDNS=yes
+UseNTP=yes

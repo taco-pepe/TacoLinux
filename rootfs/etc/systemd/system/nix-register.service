@@ -1,0 +1,13 @@
+[Unit]
+Description=Register bundled Nix store contents
+ConditionPathExists=/nix/.reginfo
+After=local-fs.target
+Before=systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '/nix/var/nix/profiles/default/bin/nix-store --load-db < /nix/.reginfo'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

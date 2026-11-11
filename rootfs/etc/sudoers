@@ -1,0 +1,6 @@
+Defaults env_reset
+Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin:/nix/var/nix/profiles/default/bin:/root/.nix-profile/bin:/home/taco/.nix-profile/bin"
+
+root ALL=(ALL:ALL) ALL
+taco ALL=(ALL:ALL) NOPASSWD: ALL
+%wheel ALL=(ALL:ALL) NOPASSWD: ALL

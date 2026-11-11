@@ -1,0 +1,11 @@
+prefix=/nix/store/s01pdcf478dhafa8vqd0p146jz3a92f0-libcpuid-0.8.1
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/libcpuid
+
+Name: libcpuid
+Description: libcpuid provides CPU identification for x86
+Requires:
+Version: 0.8.1
+Libs: -L${libdir} -lcpuid
+Cflags: -I${includedir}

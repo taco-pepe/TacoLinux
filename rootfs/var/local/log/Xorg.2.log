@@ -1,0 +1,84 @@
+[2026-09-08 17:53:26] 
+X.Org X Server 1.26.1.99
+X Protocol Version 11, Revision 0
+[2026-09-08 17:53:26] Current Operating System: Linux cachyos 7.1.3-2-cachyos #1 SMP PREEMPT_DYNAMIC Thu, 09 Jul 2026 18:16:10 +0000 x86_64
+[2026-09-08 17:53:26]  
+[2026-09-08 17:53:26] Current version of pixman: 0.46.4
+[2026-09-08 17:53:26] 	Before reporting problems, check http://wiki.x.org
+	to make sure that you have the latest version.
+[2026-09-08 17:53:26] Markers: (--) probed, (**) from config file, (==) default setting,
+	(++) from command line, (!!) notice, (II) informational,
+	(WW) warning, (EE) error, (NI) not implemented, (??) unknown.
+[2026-09-08 17:53:26] (==) Log file: "/var/local/log/Xorg.2.log", Time: Tue Sep  8 17:53:26 2026
+[2026-09-08 17:53:26] (==) Using system config directory "/usr/local/share/X11/xorg.conf.d"
+[2026-09-08 17:53:26] (==) No Layout section.  Using the first Screen section.
+[2026-09-08 17:53:26] (==) No screen section available. Using defaults.
+[2026-09-08 17:53:26] (**) |-->Screen "Default Screen Section" (0)
+[2026-09-08 17:53:26] (**) |   |-->Monitor "<default monitor>"
+[2026-09-08 17:53:26] (==) No monitor specified for screen "Default Screen Section".
+	Using a default monitor configuration.
+[2026-09-08 17:53:26] (==) Not automatically adding devices
+[2026-09-08 17:53:26] (==) Not automatically enabling devices
+[2026-09-08 17:53:26] (==) Not automatically adding GPU devices
+[2026-09-08 17:53:26] (==) Automatically binding GPU devices
+[2026-09-08 17:53:26] (==) Max clients allowed: 256, resource mask: 0x1fffff
+[2026-09-08 17:53:26] (WW) The directory "/usr/local/share/fonts/X11/misc" does not exist.
+[2026-09-08 17:53:26] 	Entry deleted from font path.
+[2026-09-08 17:53:26] (WW) The directory "/usr/local/share/fonts/X11/TTF" does not exist.
+[2026-09-08 17:53:26] 	Entry deleted from font path.
+[2026-09-08 17:53:26] (WW) The directory "/usr/local/share/fonts/X11/OTF" does not exist.
+[2026-09-08 17:53:26] 	Entry deleted from font path.
+[2026-09-08 17:53:26] (WW) The directory "/usr/local/share/fonts/X11/Type1" does not exist.
+[2026-09-08 17:53:26] 	Entry deleted from font path.
+[2026-09-08 17:53:26] (WW) The directory "/usr/local/share/fonts/X11/100dpi" does not exist.
+[2026-09-08 17:53:26] 	Entry deleted from font path.
+[2026-09-08 17:53:26] (WW) The directory "/usr/local/share/fonts/X11/75dpi" does not exist.
+[2026-09-08 17:53:26] 	Entry deleted from font path.
+[2026-09-08 17:53:26] (==) FontPath set to:
+	
+[2026-09-08 17:53:26] (==) ModulePath set to "/usr/local/lib/xorg/modules"
+[2026-09-08 17:53:26] (==) |-->Input Device "<default pointer>"
+[2026-09-08 17:53:26] (==) |-->Input Device "<default keyboard>"
+[2026-09-08 17:53:26] (==) No Layout section. Using the default mouse configuration.
+[2026-09-08 17:53:26] (==) No Layout section. Using the default keyboard configuration.
+[2026-09-08 17:53:26] (II) Module ABI versions:
+[2026-09-08 17:53:26] 	X.Org ANSI C Emulation: 0.4
+[2026-09-08 17:53:26] 	X.Org Video Driver: 28.0
+[2026-09-08 17:53:26] 	X.Org XInput driver : 26.0
+[2026-09-08 17:53:26] 	X.Org Server Extension : 11.0
+[2026-09-08 17:53:26] (WW) Open ACPI failed (/var/run/acpid.socket) (No such file or directory)
+[2026-09-08 17:53:26] (II) LoadModule: "glx"
+[2026-09-08 17:53:26] (II) Loading /usr/local/lib/xorg/modules/extensions/libglx.so
+[2026-09-08 17:53:26] (EE) Failed to load /usr/local/lib/xorg/modules/extensions/libglx.so: libGL.so.1: cannot open shared object file: No such file or directory
+[2026-09-08 17:53:26] (EE) Failed to load module "glx" (loader failed, 0)
+[2026-09-08 17:53:26] (==) Matched modesetting as autoconfigured driver 0
+[2026-09-08 17:53:26] (==) Matched fbdev as autoconfigured driver 1
+[2026-09-08 17:53:26] (==) Matched vesa as autoconfigured driver 2
+[2026-09-08 17:53:26] (==) Assigned the driver to the xf86ConfigLayout
+[2026-09-08 17:53:26] (II) LoadModule: "modesetting"
+[2026-09-08 17:53:26] (II) Loading /usr/local/lib/xorg/modules/drivers/modesetting_drv.so
+[2026-09-08 17:53:26] (EE) Failed to load /usr/local/lib/xorg/modules/drivers/modesetting_drv.so: libgbm.so.1: cannot open shared object file: No such file or directory
+[2026-09-08 17:53:26] (EE) Failed to load module "modesetting" (loader failed, 0)
+[2026-09-08 17:53:26] (II) LoadModule: "fbdev"
+[2026-09-08 17:53:26] (WW) Warning, couldn't open module fbdev
+[2026-09-08 17:53:26] (EE) Failed to load module "fbdev" (module does not exist, 0)
+[2026-09-08 17:53:26] (II) LoadModule: "vesa"
+[2026-09-08 17:53:26] (WW) Warning, couldn't open module vesa
+[2026-09-08 17:53:26] (EE) Failed to load module "vesa" (module does not exist, 0)
+[2026-09-08 17:53:26] (II) LoadModule: "mouse"
+[2026-09-08 17:53:26] (WW) Warning, couldn't open module mouse
+[2026-09-08 17:53:26] (EE) Failed to load module "mouse" (module does not exist, 0)
+[2026-09-08 17:53:26] (II) LoadModule: "kbd"
+[2026-09-08 17:53:26] (WW) Warning, couldn't open module kbd
+[2026-09-08 17:53:26] (EE) Failed to load module "kbd" (module does not exist, 0)
+[2026-09-08 17:53:26] (EE) No drivers available.
+[2026-09-08 17:53:26] (EE) 
+Fatal server error:
+[2026-09-08 17:53:26] (EE) no screens found(EE) 
+[2026-09-08 17:53:26] (EE) 
+Please consult the The X.Org Foundation support 
+	 at http://wiki.x.org
+ for help. 
+[2026-09-08 17:53:26] (EE) Please also check the log file at "/var/local/log/Xorg.2.log" for additional information.
+[2026-09-08 17:53:26] (EE) 
+[2026-09-08 17:53:26] (EE) Server terminated with error (1). Closing log file.

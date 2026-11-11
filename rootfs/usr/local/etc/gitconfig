@@ -1,0 +1,5 @@
+[core]
+	pager = cat
+[user]
+	name = taco
+	email = taco@taco.local

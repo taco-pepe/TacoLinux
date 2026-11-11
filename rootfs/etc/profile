@@ -1,0 +1,27 @@
+#!/bin/sh
+# TacoLinux /etc/profile - system wide profile for login shells.
+
+PATH="/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin"
+export PATH
+
+if [ -n "$BASH_VERSION" ] || [ -z "$ZSH_VERSION" ]; then
+    [ -f /etc/bash.bashrc ] && . /etc/bash.bashrc
+fi
+
+if [ -d /etc/profile.d ]; then
+    for i in /etc/profile.d/*.sh; do
+        [ -r "$i" ] && . "$i"
+    done
+    unset i
+fi
+
+# X is started from ~/.bash_profile only (single kicker, foreground so
+# the logon shell stays alive while the desktop runs).
+# TacoLinux prompt
+if [ -n "$BASH_VERSION" ] && [[ $- == *i* ]]; then
+    if (( EUID == 0 )); then
+        PS1='\[\e[1;38;5;208m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\] # '
+    else
+        PS1='\[\e[1;32m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\] \$ '
+    fi
+fi

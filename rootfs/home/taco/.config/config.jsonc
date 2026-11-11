@@ -1,0 +1,6 @@
+{
+  "logo": {
+    "type": "file",
+    "source": "/etc/tacolinux/ascii.txt"
+  }
+}

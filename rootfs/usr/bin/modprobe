@@ -1,0 +1,5 @@
+#!/bin/sh
+# modprobe shim for TacoLinux
+# The TacoLinux kernel is built with no external modules, everything
+# needed is compiled in. Accept and ignore module requests.
+exit 0

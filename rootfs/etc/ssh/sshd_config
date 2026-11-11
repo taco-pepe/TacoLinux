@@ -1,0 +1,7 @@
+Include /etc/ssh/sshd_config.d/*.conf
+
+# TacoLinux overrides
+PermitRootLogin yes
+PasswordAuthentication yes
+PermitUserEnvironment yes
+UsePAM no

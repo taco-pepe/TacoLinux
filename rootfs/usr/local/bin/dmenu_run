@@ -1,0 +1,16 @@
+#!/bin/sh
+echo "[dmenu] invoked PATH=$PATH" > /dev/ttyS0
+IFS=:
+list=""
+for p in $PATH; do
+    list="$list $(ls "$p" 2>&1)"
+done
+echo "[dmenu] item count: $(echo $list | wc -w)" > /dev/ttyS0
+echo $list | tr ' ' '\n' | sort -u | (dmenu "$@" 2>/dev/ttyS0; echo "[dmenu] exited rc=$?" > /dev/ttyS0) &
+sleep 3
+if pgrep -f "/usr/local/bin/dmenu" >/dev/null 2>&1 || pgrep -x dmenu >/dev/null 2>&1; then
+    echo "[dmenu] STILL ALIVE after 3s" > /dev/ttyS0
+else
+    echo "[dmenu] GONE before 3s" > /dev/ttyS0
+fi
+xprobe > /dev/ttyS0 2>&1
