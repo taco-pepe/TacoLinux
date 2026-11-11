@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -87,7 +88,7 @@ print("TacoLinux GRUB configuration generated!")
 print("Swap unit installed!")
 print("GRUB installed successfully!")
 
-subprocess.run([f"cp bootstrap/bzImage", f"/mnt/{PREP}/boot"], check=True)
-print("kenrel copyed!")
-subprocess.run([f"cp bootstrap/initramfs.img", f"/mnt/{PREP}/boot"], check=True)
-print("initramfs SENT!")
+# Copy the kernel and initramfs into the installed boot partition.
+for name in ("bzImage", "initramfs.img"):
+    shutil.copy2(Path("bootstrap") / name, PREP / "boot" / name)
+print("kernel and initramfs copied!")

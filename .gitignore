@@ -1,3 +1,7 @@
 *.img
+!bootstrap/initramfs.img
+*.qcow2
+*.zst
+*.xz
 bootmnt
-
+__pycache__/

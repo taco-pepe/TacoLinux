@@ -49,7 +49,7 @@ make a partition layout like this on a 50GB disk:
 | /dev/DEV1 | 40GB | Linux |
 | /dev/DEV2 | 9GB | Linux Swap |
 | /dev/DEV3 | 1GB | Linux |
-| /dev/DEV4 | 2Mib | grub_boot |
+| /dev/DEV4 | 2MiB | BIOS boot |
 
 here is an explanation of the layout.  
 
@@ -57,6 +57,13 @@ here is an explanation of the layout.
 - /dev/DEV2 - Meant to be the Swap of distro  
 - /dev/DEV3 - Meant to be the Uefi or Bios /boot partition storing all of the files needed for boot
 - /dev/DEV4 - grub boot partition Meant to be for booting on Bios systems.
+
+> [!IMPORTANT]
+> In `cfdisk`, set the type of ``/dev/DEV4`` to **BIOS boot** (partition type
+> code ``EF02``), not "Linux". GRUB's ``i386-pc`` target embeds ``core.img``
+> into this partition on a GPT disk, and it will not boot without it.
+> Do **not** run ``mkfs`` on ``/dev/DEV4`` — it holds raw GRUB data, not a
+> filesystem.
 
 Now we need to format a filesystem for them.  
 

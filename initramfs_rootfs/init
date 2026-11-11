@@ -21,7 +21,6 @@ $BB sleep 2
 list_parts() {
     for dev in /dev/sd* /dev/vd* /dev/nvme*n*p* /dev/mmcblk*p*; do
         [ -b "$dev" ] || continue
-        [ "$dev" = "$SWAPDEV" ] && continue
 
         info=$(/sbin/blkid "$dev" 2>/dev/null)
         [ -n "$info" ] || continue
@@ -40,10 +39,54 @@ echo
 
 list_parts
 
-echo
-echo "Enter the root partition (example: /dev/sda2)"
-printf "Root partition: "
-read ROOTDEV
+# Resolve a root= value from the kernel command line to a block device.
+# GRUB passes root=UUID=<uuid>; a plain device path is also accepted.
+resolve_root() {
+    case "$1" in
+        UUID=*)
+            want="${1#UUID=}"
+            for dev in /dev/sd* /dev/vd* /dev/nvme*n*p* /dev/mmcblk*p*; do
+                [ -b "$dev" ] || continue
+                uuid=$(/sbin/blkid -s UUID -o value "$dev" 2>/dev/null)
+                if [ "$uuid" = "$want" ]; then
+                    echo "$dev"
+                    return 0
+                fi
+            done
+            return 1
+            ;;
+        *)
+            [ -b "$1" ] && { echo "$1"; return 0; }
+            return 1
+            ;;
+    esac
+}
+
+# Use root= from the kernel command line when GRUB supplies it; otherwise
+# fall back to prompting.
+CMDLINE_ROOT=""
+for arg in $(cat /proc/cmdline 2>/dev/null); do
+    case "$arg" in
+        root=*) CMDLINE_ROOT="${arg#root=}" ;;
+    esac
+done
+
+ROOTDEV=""
+if [ -n "$CMDLINE_ROOT" ]; then
+    ROOTDEV=$(resolve_root "$CMDLINE_ROOT")
+    if [ -n "$ROOTDEV" ]; then
+        echo "[TacoLinux] Using root from kernel cmdline: $CMDLINE_ROOT -> $ROOTDEV"
+    else
+        echo "[TacoLinux] WARNING: could not resolve root=$CMDLINE_ROOT"
+    fi
+fi
+
+if [ -z "$ROOTDEV" ]; then
+    echo
+    echo "Enter the root partition (example: /dev/sda2)"
+    printf "Root partition: "
+    read ROOTDEV
+fi
 
 if [ ! -b "$ROOTDEV" ]; then
     echo "[TacoLinux] ERROR: Invalid block device"
