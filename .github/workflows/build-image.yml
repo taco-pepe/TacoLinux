@@ -1,0 +1,97 @@
+name: Build VM image
+
+on:
+  workflow_dispatch:
+    inputs:
+      desktop:
+        description: Include the XFCE/SDDM desktop closure
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vm-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Full VM runner: the build needs loop devices, mount and chroot.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo apt-get clean
+          df -h /
+
+      - name: Install image tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-utils zstd rsync e2fsprogs grub-pc-bin grub2-common \
+            util-linux fdisk
+
+      - name: Compute version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "value=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build desktop closure
+        # Tags get the full desktop; manual runs can opt out.
+        if: github.ref_type == 'tag' || inputs.desktop
+        run: sudo -E CAP=0 ./scripts/build-desktop.sh
+
+      - name: Build image
+        run: sudo -E VERSION="${{ steps.version.outputs.value }}" ./scripts/build-vm-image.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tacolinux-image-${{ steps.version.outputs.value }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+      # GitHub rejects release assets over 2 GiB.  Split anything too large;
+      # SHA256SUMS still matches after reassembly.
+      - name: Prepare release assets
+        if: github.ref_type == 'tag'
+        run: |
+          cat > dist/SPLIT-README.txt <<'EOF'
+          GitHub caps release assets at 2 GiB. Files ending in .partNN were split.
+          Reassemble with:  cat name.part* > name
+          Then verify with: sha256sum -c SHA256SUMS
+          EOF
+          shopt -s nullglob
+          for f in dist/*; do
+            case "$f" in
+              *.part*|*/SHA256SUMS|*/SPLIT-README.txt) continue ;;
+            esac
+            if [ "$(stat -c%s "$f")" -gt $((1900 * 1024 * 1024)) ]; then
+              split -b 1900M -d -a 2 "$f" "$f.part"
+              rm -f "$f"
+            fi
+          done
+
+      - name: Attach to GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true

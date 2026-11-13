@@ -139,3 +139,54 @@ Target disk (e.g. /dev/sda):
 enter in the Target disk for grub to be installed to (/dev/DEV4)
 
 after this the script will do its job setting up the env for boot.
+
+---------
+
+## prebuilt images
+
+`scripts/build-vm-image.sh` packs the current `rootfs/` into a bootable disk.
+It needs root for loop devices and mount:
+
+```sh
+sudo ./scripts/build-vm-image.sh
+
+# useful knobs
+sudo ROOTFS=./rootfs IMG_SIZE=8G COMPRESS=zstd ./scripts/build-vm-image.sh
+```
+
+Outputs land in `dist/`:
+
+| File | Use |
+| --- | --- |
+| `tacolinux-<ver>-x86_64.qcow2` | run it directly in QEMU/KVM |
+| `tacolinux-<ver>-x86_64.img.zst` | `zstd -dc <file> \| sudo dd of=/dev/sdX bs=4M status=progress` |
+| `SHA256SUMS` | verify the downloads |
+
+Disk layout (GPT):
+
+| Partition | Size | Contents |
+| --- | --- | --- |
+| `p1` | 2 MiB | BIOS boot: raw GRUB `core.img`, no filesystem, never `mkfs` it |
+| `p2` | rest | ext4 root, including `/boot` with `bzImage` and `initramfs.img` |
+
+GRUB is installed to the *disk* (`--target=i386-pc`), with
+`--boot-directory` pointing at `<root>/boot`. No swap partition is created;
+add one or use zram if you want swap.
+
+CI: `.github/workflows/build-image.yml` builds on `v*` tags (and manually) and
+attaches the images plus `SHA256SUMS` to the GitHub release. GitHub caps
+release assets at 2 GiB, so larger files are split into `.partNN` chunks; put
+them back together with `cat name.part* > name` and verify with
+`sha256sum -c SHA256SUMS`. The Forgejo mirror has the same workflow in
+`.forgejo/workflows/build-image.yml`, but it needs a self-hosted runner with
+loop/mount privileges: Codeberg's hosted runners are containers and cannot do
+this.
+
+### why not .qcow / .qcow2.gz / .img.gz?
+
+- `.qcow` is QEMU's ancient v1 format. qcow2 is what every tool reads today.
+- compressing qcow2 throws away sparse clusters and random access, which is the
+  whole point of qcow2. It is already sparse; ship it as-is.
+- gzip is slower and compresses worse than zstd on disk images. `COMPRESS=xz`
+  (smaller, slower) and `COMPRESS=gzip` (compatibility) are still available.
+

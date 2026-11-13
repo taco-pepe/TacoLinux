@@ -47,7 +47,9 @@ resolve_root() {
             want="${1#UUID=}"
             for dev in /dev/sd* /dev/vd* /dev/nvme*n*p* /dev/mmcblk*p*; do
                 [ -b "$dev" ] || continue
-                uuid=$(/sbin/blkid -s UUID -o value "$dev" 2>/dev/null)
+                # BusyBox blkid has no -s/-o flags; parse its output instead.
+                uuid=$(/sbin/blkid "$dev" 2>/dev/null \
+                       | sed -n 's/.*UUID="\([^"]*\)".*/\1/p')
                 if [ "$uuid" = "$want" ]; then
                     echo "$dev"
                     return 0

@@ -1,0 +1,74 @@
+name: Build VM image
+
+on:
+  workflow_dispatch:
+    inputs:
+      desktop:
+        description: Include the XFCE/SDDM desktop closure
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "v*"
+
+# NOTE: this needs a *self-hosted* runner with privileges.
+# The build uses loop devices, mount and chroot.  Codeberg's hosted runners
+# (codeberg-tiny/small/medium) run containerised jobs without those, so this
+# workflow will not run there.  Register your own runner and set runs-on to
+# its label if it is not "self-hosted".
+jobs:
+  build:
+    runs-on: self-hosted
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: https://code.forgejo.org/actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install image tools
+        run: |
+          set -eux
+          SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
+          if command -v grub-install >/dev/null || command -v grub2-install >/dev/null; then
+            echo "GRUB already installed"
+            exit 0
+          fi
+          if command -v apt-get >/dev/null; then
+            $SUDO apt-get update
+            $SUDO apt-get install -y --no-install-recommends \
+              qemu-utils zstd rsync e2fsprogs grub-pc-bin grub2-common util-linux fdisk
+          elif command -v dnf >/dev/null; then
+            $SUDO dnf install -y qemu-img zstd rsync e2fsprogs grub2-pc \
+              grub2-tools util-linux
+          else
+            echo "install qemu-img, zstd, rsync, e2fsprogs, grub2 and util-linux" >&2
+            exit 1
+          fi
+
+      - name: Compute version
+        id: version
+        run: |
+          ref="${FORGEJO_REF:-$GITHUB_REF}"
+          sha="${FORGEJO_SHA:-$GITHUB_SHA}"
+          case "$ref" in
+            refs/tags/*) value="${ref#refs/tags/}" ;;
+            *)           value="dev-${sha:0:7}" ;;
+          esac
+          echo "value=$value" >> "$FORGEJO_OUTPUT"
+
+      - name: Build desktop closure
+        if: startsWith(forgejo.ref, 'refs/tags/') || inputs.desktop
+        run: |
+          SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
+          $SUDO -E CAP=0 ./scripts/build-desktop.sh
+
+      - name: Build image
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
+          $SUDO -E ./scripts/build-vm-image.sh
+
+      - name: Show results
+        run: ls -lh dist/

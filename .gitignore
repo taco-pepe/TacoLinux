@@ -3,5 +3,21 @@
 *.qcow2
 *.zst
 *.xz
+dist/
+.cache/
 bootmnt
 __pycache__/
+
+# Nix store: the small bootstrap closure is tracked. The desktop closure
+# (XFCE/SDDM, ~2 GiB) is realized by scripts/build-desktop.sh locally and in
+# CI, then shipped as a build artifact -- it is never committed.
+/rootfs/nix/store/*
+# Nix runtime state: locks, journals and temp roots are per-machine.
+/rootfs/nix/var/nix/db/*-shm
+/rootfs/nix/var/nix/db/*-wal
+/rootfs/nix/var/nix/db/big-lock
+/rootfs/nix/var/nix/db/reserved
+/rootfs/nix/var/nix/db/schema
+/rootfs/nix/var/nix/gc.lock
+/rootfs/nix/var/nix/gcroots/
+/rootfs/nix/var/nix/temproots/
