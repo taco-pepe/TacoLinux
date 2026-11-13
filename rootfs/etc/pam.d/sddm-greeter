@@ -1,0 +1,9 @@
+# SDDM greeter: runs as the unprivileged "sddm" user only.
+auth       required   /nix/var/nix/profiles/desktop/lib/security/pam_succeed_if.so user = sddm
+auth       optional   /nix/var/nix/profiles/desktop/lib/security/pam_permit.so
+account    required   /nix/var/nix/profiles/desktop/lib/security/pam_succeed_if.so user = sddm
+account    sufficient /nix/var/nix/profiles/desktop/lib/security/pam_unix.so
+password   required   /nix/var/nix/profiles/desktop/lib/security/pam_deny.so
+session    required   /nix/var/nix/profiles/desktop/lib/security/pam_succeed_if.so user = sddm
+session    optional   /usr/lib/security/pam_systemd.so
+session    optional   /nix/var/nix/profiles/desktop/lib/security/pam_permit.so

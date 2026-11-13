@@ -1,0 +1,24 @@
+#!/bin/sh
+# TacoLinux SDDM launcher.
+#
+# SDDM (and the XFCE session) live in the Nix "desktop" profile, which is
+# realized by scripts/build-desktop.sh.  This wrapper puts that profile on
+# PATH -- so SDDM finds its greeter and the session entries in
+# /usr/share/xsessions -- and then execs the real SDDM binary.
+#
+# dwm is deliberately *not* installed by Nix: it is the hand-built default
+# window manager in /usr/local/bin, so a bare TacoLinux still boots to dwm.
+
+set -eu
+
+PROFILE=/nix/var/nix/profiles/desktop
+
+export PATH="$PROFILE/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export XDG_DATA_DIRS="$PROFILE/share:/usr/local/share:/usr/share${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+
+# The greeter runs as the unprivileged "sddm" user.  Make sure it has
+# writable state/runtime directories even if tmpfiles.d has not run yet.
+install -d -o sddm -g sddm -m 0700 /var/lib/sddm 2>/dev/null || true
+install -d -o sddm -g sddm -m 0755 /run/sddm 2>/dev/null || true
+
+exec "$PROFILE/bin/sddm" "$@"

@@ -1,1 +1,2 @@
-PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin:/nix/var/nix/profiles/desktop/bin:/nix/var/nix/profiles/default/bin
+XDG_DATA_DIRS=/nix/var/nix/profiles/desktop/share:/usr/local/share:/usr/share

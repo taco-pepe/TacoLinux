@@ -1,0 +1,11 @@
+# TacoLinux common login stack.
+#
+# PAM modules are not installed in the base rootfs; they come from the Nix
+# "desktop" profile (linux-pam).  Paths are absolute so no /lib/security
+# symlink farm is needed.
+auth       required   /nix/var/nix/profiles/desktop/lib/security/pam_unix.so
+account    required   /nix/var/nix/profiles/desktop/lib/security/pam_unix.so
+password   required   /nix/var/nix/profiles/desktop/lib/security/pam_unix.so
+session    required   /nix/var/nix/profiles/desktop/lib/security/pam_env.so
+session    required   /nix/var/nix/profiles/desktop/lib/security/pam_unix.so
+session    optional   /usr/lib/security/pam_systemd.so

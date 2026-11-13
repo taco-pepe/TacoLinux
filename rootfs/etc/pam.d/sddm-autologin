@@ -1,0 +1,6 @@
+# SDDM autologin (only used when autologin is configured in /etc/sddm.conf).
+auth       requisite  /nix/var/nix/profiles/desktop/lib/security/pam_nologin.so
+auth       required   /nix/var/nix/profiles/desktop/lib/security/pam_permit.so
+account    include    system-login
+password   required   /nix/var/nix/profiles/desktop/lib/security/pam_deny.so
+session    include    system-login

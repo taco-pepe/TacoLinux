@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=XFCE
+Comment=XFCE desktop environment
+Exec=startxfce4
+TryExec=startxfce4
+Type=Application
+DesktopNames=XFCE

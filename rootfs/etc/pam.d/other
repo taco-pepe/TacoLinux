@@ -1,0 +1,5 @@
+# Fallback for any service without its own file: deny everything.
+auth       required   /nix/var/nix/profiles/desktop/lib/security/pam_deny.so
+account    required   /nix/var/nix/profiles/desktop/lib/security/pam_deny.so
+password   required   /nix/var/nix/profiles/desktop/lib/security/pam_deny.so
+session    required   /nix/var/nix/profiles/desktop/lib/security/pam_deny.so

@@ -1,0 +1,18 @@
+[Unit]
+Description=TacoLinux Display Manager (SDDM)
+Documentation=man:sddm(1) man:sddm.conf(5)
+Conflicts=getty@tty1.service
+After=systemd-user-sessions.service getty@tty1.service systemd-logind.service
+Wants=systemd-user-sessions.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/taco-sddm
+Restart=always
+RestartSec=1
+IgnoreSIGPIPE=no
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+Alias=display-manager.service
