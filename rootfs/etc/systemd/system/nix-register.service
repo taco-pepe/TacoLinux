@@ -6,7 +6,10 @@ Before=systemd-user-sessions.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c '/nix/var/nix/profiles/default/bin/nix-store --load-db < /nix/.reginfo'
+# Loading the DB dump re-registers thousands of paths and takes minutes, so
+# only do it when the DB is missing or empty.  Images ship a populated
+# db.sqlite, which makes this a no-op on every normal boot.
+ExecStart=/bin/sh -c 'db=/nix/var/nix/db/db.sqlite; if [ ! -s "$db" ] || [ "$(stat -c %s "$db" 2>/dev/null || echo 0)" -lt 4096 ]; then /nix/var/nix/profiles/default/bin/nix-store --load-db < /nix/.reginfo; fi'
 RemainAfterExit=yes
 
 [Install]

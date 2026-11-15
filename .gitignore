@@ -13,11 +13,20 @@ __pycache__/
 # CI, then shipped as a build artifact -- it is never committed.
 /rootfs/nix/store/*
 # Nix runtime state: locks, journals and temp roots are per-machine.
-/rootfs/nix/var/nix/db/*-shm
-/rootfs/nix/var/nix/db/*-wal
-/rootfs/nix/var/nix/db/big-lock
-/rootfs/nix/var/nix/db/reserved
-/rootfs/nix/var/nix/db/schema
+# The store DB is derived state -- `nix-store --load-db < .reginfo` rebuilds it
+# and `scripts/build-desktop.sh` refreshes it -- so it is not committed.
+/rootfs/nix/var/nix/db/
 /rootfs/nix/var/nix/gc.lock
 /rootfs/nix/var/nix/gcroots/
 /rootfs/nix/var/nix/temproots/
+# Nix build logs and the desktop profile generation links are build state.
+/rootfs/nix/var/log/
+/rootfs/nix/var/nix/profiles/desktop*
+
+# Runtime filesystems and chroot mount points: populated at boot (devtmpfs,
+# proc, sysfs) or by the build scripts.  Never committed.
+/rootfs/dev/
+/rootfs/proc/
+/rootfs/sys/
+/rootfs/host/
+/rootfs/nixpkgs/

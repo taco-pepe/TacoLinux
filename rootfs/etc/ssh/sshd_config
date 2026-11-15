@@ -4,4 +4,6 @@ Include /etc/ssh/sshd_config.d/*.conf
 PermitRootLogin yes
 PasswordAuthentication yes
 PermitUserEnvironment yes
-UsePAM no
+# This OpenSSH is built without PAM support, so "UsePAM" is an unknown
+# directive and sshd logs "Unsupported option UsePAM" on every start.
+# Password auth is still handled by sshd itself against /etc/shadow.

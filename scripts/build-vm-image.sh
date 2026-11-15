@@ -105,6 +105,13 @@ MOUNTED=1
 rsync -aHAXS --numeric-ids "$ROOTFS/" "$MOUNT/"
 mkdir -p "$MOUNT/etc" "$MOUNT/boot"
 
+# systemd runs these paths directly.  rsync preserves modes, and a launcher
+# that lost its +x bit is not a build error -- it is a 203/EXEC at boot, after
+# the image has already been published.  Fail here instead.
+missing_x=$(find "$MOUNT/usr/local/bin" "$MOUNT/usr/local/sbin" \
+              -type f ! -perm -u+x -print -quit 2>/dev/null || true)
+[ -z "$missing_x" ] || die "not executable: ${missing_x#"$MOUNT"} (systemd would fail with 203/EXEC)"
+
 # --- kernel, initramfs, fstab, grub.cfg ------------------------------------
 log "installing kernel and initramfs into /boot"
 install -D -m644 "$REPO_ROOT/bootstrap/bzImage" "$MOUNT/boot/bzImage"
@@ -134,6 +141,12 @@ chmod 1777 "$MOUNT/tmp" "$MOUNT/var/tmp" 2>/dev/null || true
 chmod 700 "$MOUNT/root" 2>/dev/null || true
 # systemd-tmpfiles refuses to touch paths below a non-root-owned /var.
 chown root:root "$MOUNT/var" 2>/dev/null || true
+# sshd refuses to start unless its chroot directory is root-owned and not
+# group/world-writable ("/var/empty must be owned by root").  The rootfs tree
+# is checked out by an ordinary user, so it is 1000:1000 by default.
+mkdir -p "$MOUNT/var/empty"
+chown root:root "$MOUNT/var/empty" 2>/dev/null || true
+chmod 755 "$MOUNT/var/empty" 2>/dev/null || true
 
 # --- strip machine-specific state -----------------------------------------
 log "cleaning machine identity"

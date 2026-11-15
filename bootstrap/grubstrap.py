@@ -41,7 +41,7 @@ menuentry "TacoLinux :D (release)" {{
     echo "we in"
     echo "bootin your system :D"
     search --no-floppy --fs-uuid --set=root {boot_uuid}
-    linux /bzImage root=UUID={root_uuid} rw rootfstype=ext4 console=tty0 console=ttyS0,115200
+    linux /bzImage root=UUID={root_uuid} rw rootfstype=ext4 console=tty0 console=tty0,115200
     initrd /initramfs.img
 }}
 """

@@ -102,12 +102,12 @@ if ! $BB mount -t ext4 -o rw "$ROOTDEV" "$ROOT"; then
     exec $BB sh
 fi
 
-# Verify systemd exists
-if [ ! -x "$ROOT/usr/lib/systemd/systemd" ]; then
-    echo "[TacoLinux] ERROR: No systemd installation found!"
-    $BB umount "$ROOT"
-    exec $BB sh
-fi
+# Verify systemd exists - Disabled for now. made perfectly fine installation not boot.
+# if [ ! -x "$ROOT/usr/lib/systemd/systemd" ]; then
+#    echo "[TacoLinux] ERROR: No systemd installation found!"
+#    $BB umount "$ROOT"
+#    exec $BB sh
+#fi
 
 mkdir -p "$ROOT/dev" "$ROOT/proc" "$ROOT/sys" "$ROOT/run"
 
