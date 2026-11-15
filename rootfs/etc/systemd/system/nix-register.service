@@ -9,7 +9,12 @@ Type=oneshot
 # Loading the DB dump re-registers thousands of paths and takes minutes, so
 # only do it when the DB is missing or empty.  Images ship a populated
 # db.sqlite, which makes this a no-op on every normal boot.
-ExecStart=/bin/sh -c 'db=/nix/var/nix/db/db.sqlite; if [ ! -s "$db" ] || [ "$(stat -c %s "$db" 2>/dev/null || echo 0)" -lt 4096 ]; then /nix/var/nix/profiles/default/bin/nix-store --load-db < /nix/.reginfo; fi'
+#
+# NB: systemd expands specifiers in ExecStart before the shell sees it, and
+# "%s" is its "user shell" specifier -- a bare "stat -c %s" becomes
+# "stat -c /bin/bash" and the size test errors out.  Write "%%s" so the shell
+# gets a literal "%s".
+ExecStart=/bin/sh -c 'db=/nix/var/nix/db/db.sqlite; if [ ! -s "$db" ] || [ "$(stat -c %%s "$db" 2>/dev/null || echo 0)" -lt 4096 ]; then /nix/var/nix/profiles/default/bin/nix-store --load-db < /nix/.reginfo; fi'
 RemainAfterExit=yes
 
 [Install]

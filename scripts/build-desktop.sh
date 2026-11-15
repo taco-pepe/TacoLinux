@@ -36,8 +36,8 @@ PROFILE=${PROFILE:-/nix/var/nix/profiles/desktop}
 NIXBIN=/nix/var/nix/profiles/default/bin
 NIXPKGS_IN_CHROOT=/nixpkgs
 
-# The desktop closure.  Keep this list in sync with the package set in
-# README.md and with the profile check below.
+# The desktop closure.  dwm is *not* in here: it is part of the committed base
+# system and stays the default session.  This is the fallback desktop.
 PACKAGES=(
   glib gtk3 gnome-themes-extra
   desktop-file-utils shared-mime-info
@@ -140,7 +140,8 @@ fetch_nixpkgs
 mount_chroot
 
 # Register the committed bootstrap closure in the Nix DB if it is not there
-# yet.  On a fresh clone the DB is present, but be defensive.
+# yet.  The DB is derived state and is not committed, so on a fresh clone this
+# is the normal path (Nix creates the state directory itself).
 if [ ! -s "$ROOTFS/nix/var/nix/db/db.sqlite" ] ||
    [ "$(stat -c%s "$ROOTFS/nix/var/nix/db/db.sqlite" 2>/dev/null || echo 0)" -lt 4096 ]; then
   log "loading bootstrap Nix DB from .reginfo"
@@ -164,14 +165,20 @@ if ! asroot chroot "$ROOTFS" test -e "$PROFILE/lib/security/pam_unix.so"; then
   log "         (check that linux-pam is in PACKAGES)"
 fi
 
-# pam_unix execs /usr/sbin/unix_chkpwd to verify passwords for unprivileged
-# callers.  It lives in the linux-pam package, which is only in the desktop
-# profile, so expose it at the path PAM hard-codes.  Without this the SDDM
-# greeter cannot authenticate anyone: "helper binary execve failed".
-asroot chroot "$ROOTFS" ln -sf "$PROFILE/bin/unix_chkpwd" /usr/sbin/unix_chkpwd
+# pam_unix execs /run/wrappers/bin/unix_chkpwd to verify passwords for
+# unprivileged callers (the SDDM greeter).  That path is created at boot by
+# /etc/tmpfiles.d/taco-wrappers.conf, which copies it out of this profile, so
+# make sure the source is actually there.
+asroot chroot "$ROOTFS" test -x "$PROFILE/bin/unix_chkpwd" \
+  || log "warning: $PROFILE/bin/unix_chkpwd missing; the greeter will not authenticate"
 
-# Refresh the portable DB dump so the built image is self-describing.
-log "regenerating nix/.reginfo"
-asroot chroot "$ROOTFS" "$NIXBIN/nix-store" --dump-db > "$ROOTFS/nix/.reginfo"
+# Deliberately do NOT regenerate the tracked /nix/.reginfo here.  That file is
+# the *bootstrap* dump -- just the closure that is committed to git -- and it is
+# what lets a fresh clone register the bundled Nix store.  A full dump of the
+# desktop closure is ~3.5 MiB of paths and would land in a tracked file, so
+# every build would dirty the repo and bloat it.  The image does not need it:
+# build-vm-image.sh ships the populated db.sqlite, which already contains the
+# whole store, and nix-register.service only falls back to .reginfo when that
+# DB is missing.
 
 log "done: desktop profile is $PROFILE"

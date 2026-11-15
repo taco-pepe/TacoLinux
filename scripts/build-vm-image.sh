@@ -102,8 +102,36 @@ log "copying rootfs (this takes a while)"
 mkdir -p "$MOUNT"
 mount "$ROOT_PART" "$MOUNT"
 MOUNTED=1
-rsync -aHAXS --numeric-ids "$ROOTFS/" "$MOUNT/"
+# /dev, /proc, /sys, /run, /host and /nixpkgs are runtime or build-time mount
+# points: the kernel mounts the first four at boot, and the last two are where
+# the build scripts bind-mount things while chrooting.  Whatever a local build
+# happened to leave there must not end up in the published image.  rsync still
+# creates the (empty) directories.
+rsync -aHAXS --numeric-ids \
+  --exclude '/dev/*' --exclude '/proc/*' --exclude '/sys/*' --exclude '/run/*' \
+  --exclude '/host/*' --exclude '/nixpkgs/*' \
+  "$ROOTFS/" "$MOUNT/"
 mkdir -p "$MOUNT/etc" "$MOUNT/boot"
+
+# rsync -a preserves ownership, and this tree is checked out by an ordinary
+# user, so without this the image's / is owned by uid 1000.  systemd refuses
+# to touch paths under a non-root-owned /: systemd-tmpfiles logs "Detected
+# unsafe path transition / (owned by taco)" and skips its rules, so
+# /run/wrappers never appears and the SDDM greeter cannot authenticate.
+# Own the whole tree by root, then give back the few paths that belong to a
+# service account.  The uids are read from the image's own /etc/passwd so they
+# cannot drift out of sync with it.
+log "fixing ownership"
+chown -R root:root "$MOUNT"
+chown_image_owner() {
+  local uid gid
+  uid=$(awk -F: -v u="$2" '$1 == u { print $3 }' "$MOUNT/etc/passwd")
+  gid=$(awk -F: -v u="$2" '$1 == u { print $4 }' "$MOUNT/etc/passwd")
+  [ -n "$uid" ] || return 0
+  chown -R "$uid:$gid" "$1" 2>/dev/null || true
+}
+chown_image_owner "$MOUNT/home/taco" taco
+chown_image_owner "$MOUNT/var/lib/sddm" sddm
 
 # systemd runs these paths directly.  rsync preserves modes, and a launcher
 # that lost its +x bit is not a build error -- it is a 203/EXEC at boot, after
@@ -139,14 +167,25 @@ chmod 644 "$MOUNT/etc/passwd" "$MOUNT/etc/group" "$MOUNT/etc/hostname" \
 chmod 640 "$MOUNT/etc/shadow" "$MOUNT/etc/gshadow" 2>/dev/null || true
 chmod 1777 "$MOUNT/tmp" "$MOUNT/var/tmp" 2>/dev/null || true
 chmod 700 "$MOUNT/root" 2>/dev/null || true
-# systemd-tmpfiles refuses to touch paths below a non-root-owned /var.
-chown root:root "$MOUNT/var" 2>/dev/null || true
 # sshd refuses to start unless its chroot directory is root-owned and not
-# group/world-writable ("/var/empty must be owned by root").  The rootfs tree
-# is checked out by an ordinary user, so it is 1000:1000 by default.
+# group/world-writable ("/var/empty must be owned by root").
 mkdir -p "$MOUNT/var/empty"
 chown root:root "$MOUNT/var/empty" 2>/dev/null || true
 chmod 755 "$MOUNT/var/empty" 2>/dev/null || true
+
+# --- restore setuid helpers ------------------------------------------------
+# Two independent things lose the setuid bit, so it must be set explicitly
+# here.  git only records the executable bit, so a committed sudo is plain
+# 0755 on a fresh clone; and chown() clears setuid/setgid on Linux even when
+# root does the chown() (which we do above).  Without this the image ships a
+# sudo that cannot elevate, a broken ssh-keysign, and a broken xlaunch.
+log "restoring setuid helpers"
+for helper in "4755 usr/bin/sudo" "4755 usr/local/sbin/xlaunch" \
+              "4711 usr/libexec/ssh-keysign"; do
+  mode=${helper%% *}; path=${helper#* }
+  [ -e "$MOUNT/$path" ] || die "missing setuid helper: /$path"
+  chmod "$mode" "$MOUNT/$path"
+done
 
 # --- strip machine-specific state -----------------------------------------
 log "cleaning machine identity"

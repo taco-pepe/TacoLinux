@@ -1,0 +1,14 @@
+# systemd --user PAM stack.
+#
+# systemd's own /usr/lib/pam.d/systemd-user names modules with no path, and the
+# base libpam -- the one systemd dlopens, with its module directory at
+# /usr/lib/security -- only has pam_systemd*.so there.  So every module fails
+# to load and each user@.service dies with "Failed to set up PAM session".
+# Spell out the Nix desktop profile explicitly, the same way system-login does.
+account    required   /nix/var/nix/profiles/desktop/lib/security/pam_unix.so no_pass_expiry
+auth       required   /nix/var/nix/profiles/desktop/lib/security/pam_rootok.so
+session    required   /nix/var/nix/profiles/desktop/lib/security/pam_loginuid.so
+session    optional   /nix/var/nix/profiles/desktop/lib/security/pam_keyinit.so force revoke
+session    optional   /nix/var/nix/profiles/desktop/lib/security/pam_namespace.so
+session    optional   /nix/var/nix/profiles/desktop/lib/security/pam_umask.so silent
+session    optional   /usr/lib/security/pam_systemd.so

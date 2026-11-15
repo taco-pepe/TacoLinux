@@ -1,1 +1,1 @@
-/nix/var/nix/profiles/desktop/bin/unix_chkpwd
+/run/wrappers/bin/unix_chkpwd
