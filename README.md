@@ -142,10 +142,53 @@ after this the script will do its job setting up the env for boot.
 
 ---------
 
+## desktop sessions
+
+**TacoLinux is a dwm distro.**  `dwm` is the default session: it is what SDDM
+selects for you, and it is the hand-built window manager this whole thing
+exists for.  XFCE is installed next to it as a normal desktop for when you
+want one -- it is not the point of the distro.
+
+SDDM is the display manager.  Both sessions live in `usr/share/xsessions/`:
+
+| Session | File | Notes |
+| --- | --- | --- |
+| `dwm` | `usr/share/xsessions/dwm.desktop` | default |
+| `xfce` | `usr/share/xsessions/xfce.desktop` | from nixpkgs |
+
+Switch just for one login from the session menu in the greeter.  SDDM has no
+"default session" setting, so the default comes from `state.conf`: the image
+seeds `/var/lib/sddm/state.conf` with `[Last] Session=dwm.desktop`, and
+`RememberLastSession` (on by default) keeps whatever a user picks.  To change
+the default for a fresh install, change that line to `xfce.desktop` -- note
+the file name, not the `Name=` field.
+
+SDDM and XFCE come from nixpkgs and are installed into a **separate** Nix
+profile, `/nix/var/nix/profiles/desktop`.  The bundled Nix default profile is
+left alone, so more window managers or desktops can be added the same way
+without disturbing the base system.
+
+---------
+
 ## prebuilt images
 
-`scripts/build-vm-image.sh` packs the current `rootfs/` into a bootable disk.
-It needs root for loop devices and mount:
+There are two steps.  First install the desktop closure into `rootfs/` -- it
+is a ~2 GiB download the first time, and it is deliberately **not** committed
+to git:
+
+```sh
+sudo ./scripts/build-desktop.sh
+```
+
+The build is capped to 6 cores / 6 GiB by default, which is friendlier on a
+laptop.  Set `CAP=0` to let it use the whole machine:
+
+```sh
+sudo CAP=0 ./scripts/build-desktop.sh
+```
+
+Then pack the whole `rootfs/` (base system + desktop closure) into a bootable
+disk.  This needs root for loop devices and mount:
 
 ```sh
 sudo ./scripts/build-vm-image.sh
@@ -174,13 +217,14 @@ GRUB is installed to the *disk* (`--target=i386-pc`), with
 add one or use zram if you want swap.
 
 CI: `.github/workflows/build-image.yml` builds on `v*` tags (and manually) and
-attaches the images plus `SHA256SUMS` to the GitHub release. GitHub caps
-release assets at 2 GiB, so larger files are split into `.partNN` chunks; put
-them back together with `cat name.part* > name` and verify with
-`sha256sum -c SHA256SUMS`. The Forgejo mirror has the same workflow in
-`.forgejo/workflows/build-image.yml`, but it needs a self-hosted runner with
-loop/mount privileges: Codeberg's hosted runners are containers and cannot do
-this.
+attaches the images plus `SHA256SUMS` to the GitHub release. Tag builds run
+`build-desktop.sh` first, so tagged images include SDDM + XFCE; a manual run
+can opt out. GitHub caps release assets at 2 GiB, so larger files are split
+into `.partNN` chunks; put them back together with `cat name.part* > name` and
+verify with `sha256sum -c SHA256SUMS`. The Forgejo mirror has the same
+workflow in `.forgejo/workflows/build-image.yml`, but it needs a self-hosted
+runner with loop/mount privileges: Codeberg's hosted runners are containers
+and cannot do this.
 
 ### why not .qcow / .qcow2.gz / .img.gz?
 
