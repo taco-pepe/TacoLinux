@@ -59,6 +59,9 @@ jobs:
         if: github.ref_type == 'tag' || inputs.desktop
         run: sudo -E CAP=0 ./scripts/build-desktop.sh
 
+      - name: Build XBPS (package manager)
+        run: sudo -E CAP=0 ./scripts/build-xbps.sh
+
       # Releases get the smallest artifact we can make: xz -9e, and no qcow2
       # (it is ~5.5 GiB of uncompressed disk that nobody wants to download).
       - name: "Build image (release: xz -9e, no qcow2)"

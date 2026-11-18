@@ -63,6 +63,11 @@ jobs:
           SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
           $SUDO -E CAP=0 ./scripts/build-desktop.sh
 
+      - name: Build XBPS (package manager)
+        run: |
+          SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
+          $SUDO -E CAP=0 ./scripts/build-xbps.sh
+
       - name: Build image
         env:
           VERSION: ${{ steps.version.outputs.value }}

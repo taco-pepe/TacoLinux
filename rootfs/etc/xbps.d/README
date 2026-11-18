@@ -1,0 +1,2 @@
+TacoLinux ships XBPS alongside Nix as a system package manager.
+These are default Void Linux repositories; adjust them to fit your needs.

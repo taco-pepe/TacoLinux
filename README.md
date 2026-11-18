@@ -235,14 +235,15 @@ GRUB is installed to the *disk* (`--target=i386-pc`), with
 add one or use zram if you want swap.
 
 CI: `.github/workflows/build-image.yml` builds on `v*` tags (and manually) and
-attaches the images plus `SHA256SUMS` to the GitHub release. Tag builds run
-`build-desktop.sh` first, so tagged images include SDDM + XFCE; a manual run
-can opt out. GitHub caps release assets at 2 GiB, so larger files are split
-into `.partNN` chunks; put them back together with `cat name.part* > name` and
-verify with `sha256sum -c SHA256SUMS`. The Forgejo mirror has the same
-workflow in `.forgejo/workflows/build-image.yml`, but it needs a self-hosted
-runner with loop/mount privileges: Codeberg's hosted runners are containers
-and cannot do this.
+attaches the images plus `SHA256SUMS` to the GitHub release. Builds run
+`scripts/build-xbps.sh` so images ship **XBPS alongside Nix**. Tag builds also
+run `build-desktop.sh`, so tagged images include SDDM + XFCE; a manual run can
+opt out of the desktop closure. GitHub caps release assets at 2 GiB, so larger
+files are split into `.partNN` chunks; put them back together with
+`cat name.part* > name` and verify with `sha256sum -c SHA256SUMS`. The Forgejo
+mirror has the same workflow in `.forgejo/workflows/build-image.yml`, but it
+needs a self-hosted runner with loop/mount privileges: Codeberg's hosted
+runners are containers and cannot do this.
 
 ### why not .qcow / .qcow2.gz / .img.gz?
 
