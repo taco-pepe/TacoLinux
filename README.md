@@ -6,6 +6,18 @@ the worlds worst distro of linux.
 > TacoLinux isn't a joke. it needs real Linux exp. do not use it as a first distro.
 ---------
 
+## show off
+
+![TacoLinux XFCE desktop](docs/showoff/xfce-desktop.png)
+
+*XFCE desktop session on TacoLinux (booted in QEMU).*
+
+![TacoLinux XFCE with st and fastfetch](docs/showoff/xfce-fastfetch-st.jpg)
+
+*XFCE with `st` open and `fastfetch` showing off the system.*
+
+---------
+
 ## install
 
 tacolinux is not like normal distros.  
