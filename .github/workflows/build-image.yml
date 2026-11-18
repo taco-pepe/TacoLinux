@@ -22,7 +22,9 @@ jobs:
   build:
     # Full VM runner: the build needs loop devices, mount and chroot.
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    # xz -9e is deliberately slow; the desktop closure plus compression can
+    # take hours.  GitHub-hosted jobs are capped at 6h.
+    timeout-minutes: 360
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +42,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            qemu-utils zstd rsync e2fsprogs grub-pc-bin grub2-common \
+            qemu-utils zstd xz-utils rsync e2fsprogs grub-pc-bin grub2-common \
             util-linux fdisk
 
       - name: Compute version
@@ -57,7 +59,14 @@ jobs:
         if: github.ref_type == 'tag' || inputs.desktop
         run: sudo -E CAP=0 ./scripts/build-desktop.sh
 
-      - name: Build image
+      # Releases get the smallest artifact we can make: xz -9e, and no qcow2
+      # (it is ~5.5 GiB of uncompressed disk that nobody wants to download).
+      - name: "Build image (release: xz -9e, no qcow2)"
+        if: github.ref_type == 'tag'
+        run: sudo -E VERSION="${{ steps.version.outputs.value }}" COMPRESS=xz QCOW2=0 ./scripts/build-vm-image.sh
+
+      - name: "Build image (manual: zstd + qcow2)"
+        if: github.ref_type != 'tag'
         run: sudo -E VERSION="${{ steps.version.outputs.value }}" ./scripts/build-vm-image.sh
 
       - name: Upload build artifacts
@@ -93,5 +102,7 @@ jobs:
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
+          name: TacoLinux ${{ github.ref_name }}
           files: dist/*
           fail_on_unmatched_files: true
+          generate_release_notes: true

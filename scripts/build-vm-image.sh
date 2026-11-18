@@ -253,7 +253,7 @@ case "$COMPRESS" in
       zstd -T0 -12 -q -f "$RAW" -o "$RAW.zst"
     fi
     ;;
-  xz)   log "compressing raw image with xz"; xz -T0 -9 -f -k "$RAW" ;;
+  xz)   log "compressing raw image with xz -9e (maximum)"; xz -T0 -9e -f -k "$RAW" ;;
   gzip) log "compressing raw image with gzip"; gzip -9 -f -k "$RAW" ;;
   none) ;;
   *) die "unknown COMPRESS=$COMPRESS (zstd|xz|gzip|none)" ;;

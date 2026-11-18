@@ -201,9 +201,15 @@ Outputs land in `dist/`:
 
 | File | Use |
 | --- | --- |
-| `tacolinux-<ver>-x86_64.qcow2` | run it directly in QEMU/KVM |
-| `tacolinux-<ver>-x86_64.img.zst` | `zstd -dc <file> \| sudo dd of=/dev/sdX bs=4M status=progress` |
+| `tacolinux-<ver>-x86_64.qcow2` | run it directly in QEMU/KVM (manual builds only) |
+| `tacolinux-<ver>-x86_64.img.zst` | `zstd -dc <file> \| sudo dd of=/dev/sdX bs=4M status=progress` (manual builds) |
+| `tacolinux-<ver>-x86_64.img.xz` | `xz -dc <file> \| sudo dd of=/dev/sdX bs=4M status=progress conv=fsync` (tag releases) |
 | `SHA256SUMS` | verify the downloads |
+
+Tag builds (`v*`) are tuned for downloading: they use `COMPRESS=xz` (`xz -9e`,
+the smallest and slowest mode) and `QCOW2=0`, so a release contains only the
+compressed raw image and `SHA256SUMS` -- no multi-gigabyte qcow2.  Local and
+manual builds keep the faster zstd + qcow2 defaults.
 
 Disk layout (GPT):
 
