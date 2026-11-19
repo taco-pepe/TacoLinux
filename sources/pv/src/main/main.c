@@ -1,0 +1,1069 @@
+/*
+ * Main program entry point - read the command line options, then perform
+ * the appropriate actions.
+ *
+ * Copyright 2002-2008, 2010, 2012-2015, 2017, 2021, 2023-2026 Andrew Wood
+ *
+ * License GPLv3+: GNU GPL version 3 or later; see `docs/COPYING'.
+ */
+
+#include "config.h"
+#include "options.h"
+#include "pv.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#ifdef HAVE_LANGINFO_H
+#include <langinfo.h>
+#endif
+
+/*
+ * Write a PID file, returning nonzero on error.  Write it atomically, such
+ * that the file either exists and contains the PID, or is not updated at
+ * all.  This is done by writing to a temporary file in the same directory
+ * first, and then renaming the temporary file to the target name.
+ */
+static int pv__write_pidfile( /*@null@ */ char *pidfile_name)
+{
+	char *pidfile_tmp_name;
+	size_t pidfile_tmp_bufsize;
+	int pidfile_tmp_fd;
+	FILE *pidfile_tmp_fptr;
+	mode_t prev_umask;
+	const char *pidfile_template = "%s.XXXXXX";
+
+	if (NULL == pidfile_name)
+		return 0;
+
+	/*
+	 * The buffer needs to be long enough to hold the pidfile with the
+	 * mkstemp template ".XXXXXX" after it.  The "%s" of the
+	 * pidfile_template adds 2 extra bytes to the length, of which 1
+	 * byte is used for the terminating \0, so subtract 1 byte more to
+	 * get the exact amount of space needed.
+	 */
+	pidfile_tmp_bufsize = strlen(pidfile_template) + strlen(pidfile_name) - 1;	/* flawfinder: ignore */
+
+	/*
+	 * flawfinder rationale: the warning is about strlen() being called
+	 * on a string that may not be \0 terminated.  pidfile_template is a
+	 * constant so is always \0-terminated.  pidfile_name comes from
+	 * argv[] whose entries are \0-terminated.
+	 */
+
+	pidfile_tmp_name = malloc(pidfile_tmp_bufsize);
+	if (NULL == pidfile_tmp_name) {
+		pv_perror("%s", pidfile_name);
+		return PV_ERROREXIT_REMOTE_OR_PID;
+	}
+	memset(pidfile_tmp_name, 0, pidfile_tmp_bufsize);
+	(void) pv_snprintf(pidfile_tmp_name, pidfile_tmp_bufsize, pidfile_template, pidfile_name);
+
+	/*@-type@ *//* splint doesn't like mode_t. */
+	prev_umask = umask(0000);	    /* flawfinder: ignore */
+	(void) umask(prev_umask | 0133);    /* flawfinder: ignore */
+
+	/*@-unrecog@ *//* splint doesn't know mkstemp(). */
+	pidfile_tmp_fd = mkstemp(pidfile_tmp_name);	/* flawfinder: ignore */
+	/*@+unrecog@ */
+	if (pidfile_tmp_fd < 0) {
+		pv_perror("%s", pidfile_tmp_name);
+		(void) umask(prev_umask);   /* flawfinder: ignore */
+		free(pidfile_tmp_name);
+		return PV_ERROREXIT_REMOTE_OR_PID;
+	}
+
+	(void) umask(prev_umask);	    /* flawfinder: ignore */
+
+	/*
+	 * flawfinder rationale (umask, mkstemp) - flawfinder recommends
+	 * setting the most restrictive umask possible when calling
+	 * mkstemp().  To do this, the original umask is ORed with 0133 to
+	 * ensure that new files will be chmod 644 or more restricted.
+	 * After creating the temporary file, the old umask is restored.
+	 */
+
+	/*@+type@ */
+
+	pidfile_tmp_fptr = fdopen(pidfile_tmp_fd, "w");
+	if (NULL == pidfile_tmp_fptr) {
+		pv_perror("%s", pidfile_tmp_name);
+		(void) close(pidfile_tmp_fd);
+		(void) remove(pidfile_tmp_name);
+		free(pidfile_tmp_name);
+		return PV_ERROREXIT_REMOTE_OR_PID;
+	}
+
+	fprintf(pidfile_tmp_fptr, "%d\n", getpid());
+	if (0 != fclose(pidfile_tmp_fptr)) {
+		pv_perror("%s", pidfile_tmp_name);
+	}
+
+	if (rename(pidfile_tmp_name, pidfile_name) < 0) {
+		pv_perror("%s", pidfile_name);
+		(void) remove(pidfile_tmp_name);
+		free(pidfile_tmp_name);
+		return PV_ERROREXIT_REMOTE_OR_PID;
+	}
+
+	free(pidfile_tmp_name);
+
+	return 0;
+}
+
+
+/*
+ * Set the output file, if applicable.  Returns nonzero on error.
+ */
+static int pv__set_output(pvstate_t state, opts_t opts, /*@null@ */ const char *output_file)
+{
+	int output_fd;
+
+	if ((NULL == state) || (NULL == opts))
+		return 0;
+
+	if (NULL == output_file || 0 == strcmp(output_file, "-")) {
+		debug("%s", "setting output to stdout");
+		pv_state_output_set(state, STDOUT_FILENO, "(stdout)");
+		return 0;
+	}
+
+	debug("%s: %s", "setting output", output_file);
+	output_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0600);	/* flawfinder: ignore */
+	/*
+	 * flawfinder rationale: the output filename has been explicitly
+	 * provided, and in many cases the operator will want to write to
+	 * device files and other special destinations, so there is no
+	 * checking that could be done to make this safer.
+	 */
+	if (output_fd < 0) {
+		pv_perror("%s", output_file);
+		return PV_ERROREXIT_ACCESS;
+	}
+
+	pv_state_output_set(state, output_fd, output_file);
+	return 0;
+}
+
+
+/*
+ * Store-and-forward mode: run the main loop once with the output forced to
+ * the store-and-forward file (creating and removing a temporary file if "-"
+ * was specified); then run the main loop again with the input file list
+ * forced to be just the store-and-forward file.  Returns nonzero on error.
+ */
+static int pv__store_and_forward(pvstate_t state, opts_t opts, pvformatoptions_s format_options)
+{
+	char tmp_filename[4096];	 /* flawfinder: ignore */
+	bool use_temporary_file;
+	char *real_store_and_forward_file;
+	int retcode;
+
+	/* flawfinder: zeroed with memset and bounded by pv_snprintf. */
+
+	if ((NULL == state) || (NULL == opts) || (NULL == opts->store_and_forward_file))
+		return 0;
+
+	memset(tmp_filename, 0, sizeof(tmp_filename));
+
+	use_temporary_file = false;
+	if (0 == strcmp(opts->store_and_forward_file, "-"))
+		use_temporary_file = true;
+
+	/*
+	 * Create a temporary file if the specified file was "-".
+	 */
+	if (use_temporary_file) {
+		char *tmpdir;
+		int tmp_fd;
+
+		tmpdir = (char *) getenv("TMPDIR");	/* flawfinder: ignore */
+		if ((NULL == tmpdir) || ('\0' == tmpdir[0]))
+			tmpdir = (char *) getenv("TMP");	/* flawfinder: ignore */
+		if ((NULL == tmpdir) || ('\0' == tmpdir[0]))
+			tmpdir = "/tmp";
+
+		/*
+		 * flawfinder rationale: null and zero-size values of $TMPDIR and
+		 * $TMP are rejected, and the destination buffer is bounded.
+		 */
+
+		(void) pv_snprintf(tmp_filename, sizeof(tmp_filename), "%s/pv.XXXXXX", tmpdir);
+		/*@-unrecog@ *//* splint doesn't know mkstemp(). */
+		tmp_fd = mkstemp(tmp_filename);	/* flawfinder: ignore */
+		/*@+unrecog@ */
+		if (tmp_fd < 0) {
+			pv_perror("%s", tmp_filename);
+			return PV_ERROREXIT_SAF;
+		}
+		(void) close(tmp_fd);
+	}
+
+	/*
+	 * Real store-and-forward file: either the one we were given, or the
+	 * temporary file we created if we were given "-".
+	 */
+	real_store_and_forward_file = use_temporary_file ? tmp_filename : opts->store_and_forward_file;
+
+	/*
+	 * First, set the output file to the store-and-forward file.
+	 */
+	debug("%s: %s", "setting output to store-and-forward file", real_store_and_forward_file);
+	retcode = pv__set_output(state, opts, real_store_and_forward_file);
+	if (0 != retcode)
+		goto end_store_and_forward;
+
+	/* Set the displayed name to "(input)" and trigger a format reparse. */
+	/*@-mustfreefresh@ */
+	pv_state_name_set(state, _("(input)"));
+	pv_state_set_format_options(state, format_options);
+	/*@+mustfreefresh@ *//* see below about gettext _() calls. */
+
+	/* Ensure the discard option (-X) is not set. */
+	pv_state_discard_input_set(state, false);
+
+	/* Run the main loop as normal. */
+	debug("%s", "running store-and-forward receiver");
+	retcode = pv_main_loop(state);
+	if (0 != retcode)
+		goto end_store_and_forward;
+
+	/* Set the output file back to what it originally was. */
+	debug("%s: %s", "setting output to original value", NULL == opts->output ? "(null)" : opts->output);
+	retcode = pv__set_output(state, opts, opts->output);
+	if (0 != retcode)
+		goto end_store_and_forward;
+
+	/* Replace the list of input files with the store-and-forward file. */
+	debug("%s", "resetting input file list");
+	pv_state_inputfiles(state, 1, (const char **) &real_store_and_forward_file);
+
+	/* Recalculate the input size. */
+	pv_state_size_set(state, pv_calc_total_size(state));
+
+	/* Set the displayed name to whatever was requested. */
+	pv_state_name_set(state, opts->name);
+	/* Reset the format, in case ETA was originally requested. */
+	format_options.eta = opts->eta;
+	format_options.fineta = opts->fineta;
+	pv_state_set_format_options(state, format_options);
+
+	/* Reset the discard option to whatever the original option value was. */
+	pv_state_discard_input_set(state, opts->discard_input);
+
+	/* Prepare the state for re-use. */
+	pv_state_reuse(state);
+
+	/* Run the main loop again. */
+	debug("%s", "running store-and-forward transmitter");
+	retcode = pv_main_loop(state);
+
+      end_store_and_forward:
+	if (use_temporary_file)
+		(void) remove(tmp_filename);
+
+	return retcode;
+}
+
+
+/*
+ * Run the main transfer loop for the given side of monitor mode, using the
+ * "command_fd" file descriptor as the transfer loop's output (on the "in"
+ * side, it's a pipe to the command) or as its input (on the "out" side,
+ * it's a pipe from the command).
+ *
+ * If both sides are active, "othermonitor_pid" is the PID of the monitor on
+ * the other side, "othermonitor_read_fd" is for reading transfer progress
+ * from the other monitor, and "othermonitor_write_fd" is for writing
+ * transfer progress to the other monitor.
+ *
+ * Returns the appropriate exit status.
+ *
+ * As a side effect, "command_fd" is closed.
+ */
+static int pv__run_monitor(pvstate_t state, pvside_t side, int command_fd,
+			   pid_t othermonitor_pid, int othermonitor_read_fd, int othermonitor_write_fd, off_t size,
+			   pvformatoptions_s format_options)
+{
+	const char *dummy_argv[1];	 /* flawfinder: ignore */
+
+	/* flawfinder - the array length is passed along with the array. */
+
+	switch (side) {
+	case PV_SIDE_NONE:		    /* fall through */
+	case PV_SIDE_BOTH:
+		return PV_ERROREXIT_MONITOR;
+	case PV_SIDE_IN:
+		/* Replace stdout with the pipe to the command. */
+		debug("replacing stdout with fd %d", command_fd);
+		if (dup2(command_fd, STDOUT_FILENO) < 0) {
+			pv_perror("%s", "dup2");
+			return PV_ERROREXIT_MONITOR;
+		}
+		break;
+	case PV_SIDE_OUT:
+		/* Replace stdin with the pipe from the command. */
+		debug("replacing stdin with fd %d", command_fd);
+		if (dup2(command_fd, STDIN_FILENO) < 0) {
+			pv_perror("%s", "dup2");
+			return PV_ERROREXIT_MONITOR;
+		}
+		break;
+	}
+
+	/* Close command_fd now it's been duplicated to the appropriate fd. */
+	if (close(command_fd) < 0) {
+		pv_perror("%s", "close");
+	}
+
+	/* Copy details of the other monitor into the main state. */
+	pv_state_othermonitor_set(state, othermonitor_pid, othermonitor_read_fd, othermonitor_write_fd);
+
+	/* Set the input files list to just "-". */
+	/*@-observertrans@ */
+	dummy_argv[0] = "-";
+	/*@+observertrans@ */
+	pv_state_inputfiles(state, 1, dummy_argv);
+
+	/* Calculate the size for this side. */
+	if (0 == size) {
+		size = pv_calc_total_size(state);
+		debug("%s: %llu", "no size given - calculated", size);
+	}
+
+	/* If the size is unknown, ETA cannot be displayed. */
+	if (size < 1) {
+		format_options.eta = false;
+		format_options.fineta = false;
+		pv_state_set_format_options(state, format_options);
+		debug("%s", "size unknown - ETA disabled");
+	}
+
+	/* Copy the calculated size into the main state. */
+	pv_state_size_set(state, size);
+
+	/* Add ratio to the default format on the out side of a "both". */
+	if ((othermonitor_pid > 0) && (PV_SIDE_OUT == side)) {
+		pv_state_append_to_default_format(state, "%{ratio}");
+	}
+
+	/* Prevent any progress output if the format was explicitly made empty. */
+	pv_state_cancel_output_if_empty_format_string(state);
+
+	/* Run the main transfer loop. */
+	return pv_main_loop(state);
+}
+
+
+/*
+ * Monitor mode: run a process and run the main transfer loop on its input,
+ * output, or both.  Returns the appropriate exit status.
+ *
+ * When monitoring both sides, two pipes are set up between the monitor
+ * processes for each side - in to out, and out to in - for them to exchange
+ * information about the transfer, so both sides can see how many bytes the
+ * other side has transferred.  This is what allows the in:out ratio to be
+ * displayed.
+ */
+static int pv__monitor(pvstate_t state, opts_t opts, pvformatoptions_s format_options)
+{
+	int pipefd_cmd_in[2];		 /* pipe from the monitor to the command */
+	int pipefd_cmd_out[2];		 /* pipe from the command to the monitor */
+	int pipefd_in_to_out[2];	 /* from in monitor to out monitor */
+	int pipefd_out_to_in[2];	 /* from out monitor to in monitor */
+	int retcode, pid_status;
+	pid_t command_pid, in_monitor_pid, out_monitor_pid, waited_pid;
+	char *pidfile_main;
+	char *pidfile_sub;
+
+	/* Arguments check. */
+	if ((NULL == opts->argv) || (opts->argc < 1) || (NULL == opts->argv[0])) {
+		/*@-mustfreefresh@ */
+		pv_error("-M: %s", _("a command to run must be specified"));
+		return PV_ERROREXIT_MONITOR;
+		/*@+mustfreefresh@ *//* see below about gettext _() calls. */
+	}
+
+	retcode = 0;
+
+	/*
+	 * Select the PID files to write for the main process and, if
+	 * monitoring both sides, for the sub-process monitoring the other
+	 * side.
+	 */
+	pidfile_main = NULL;
+	pidfile_sub = NULL;
+	if (NULL != opts->pidfile1) {
+		/* Two "-P" options were passed. */
+		pidfile_main = opts->pidfile1;	/* PID of main side to first -P. */
+		pidfile_sub = opts->pidfile;	/* PID of "out" side to second -P. */
+	} else {
+		/* One "-P" option, so only write the main process PID. */
+		pidfile_main = opts->pidfile;
+	}
+
+	/*
+	 * Write the PID file for the main monitoring process, if
+	 * applicable, returning immediately on failure.
+	 */
+	if (NULL != pidfile_main) {
+		int pidfile_rc;
+		pidfile_rc = pv__write_pidfile(pidfile_main);
+		if (0 != pidfile_rc) {
+			return pidfile_rc;
+		}
+	}
+
+	/*
+	 * Create the pipes for communicating with the command.
+	 */
+
+	pipefd_cmd_in[0] = -1;
+	pipefd_cmd_in[1] = -1;
+	pipefd_cmd_out[0] = -1;
+	pipefd_cmd_out[1] = -1;
+
+	/* Pipe for the input side of the command, if it's to be monitored. */
+	if ((PV_SIDE_IN == opts->side) || (PV_SIDE_BOTH == opts->side)) {
+		if (0 != pipe(pipefd_cmd_in)) {
+			pv_perror("%s", "pipe");
+			if ((NULL != pidfile_main) && (0 != remove(pidfile_main))) {
+				pv_perror("%s", pidfile_main);
+			}
+			return PV_ERROREXIT_MONITOR;
+		}
+		debug("pipefd_cmd_in[]=(%d,%d)", pipefd_cmd_in[0], pipefd_cmd_in[1]);
+	}
+
+	/* Pipe for the output side of the command, if it's to be monitored. */
+	if ((PV_SIDE_OUT == opts->side) || (PV_SIDE_BOTH == opts->side)) {
+		if (0 != pipe(pipefd_cmd_out)) {
+			pv_perror("%s", "pipe");
+			if (-1 != pipefd_cmd_in[0])
+				(void) close(pipefd_cmd_in[0]);
+			if (-1 != pipefd_cmd_in[1])
+				(void) close(pipefd_cmd_in[1]);
+			if ((NULL != pidfile_main) && (0 != remove(pidfile_main))) {
+				pv_perror("%s", pidfile_main);
+			}
+			return PV_ERROREXIT_MONITOR;
+		}
+		debug("pipefd_cmd_out[]=(%d,%d)", pipefd_cmd_out[0], pipefd_cmd_out[1]);
+	}
+
+	/* Common idiom to close an fd, and set it to -1, if it's open. */
+#define close_if_open(x) if (-1 != x) { \
+(void) close(x); \
+x = -1; \
+}
+
+	/* Create a process to run the command. */
+	command_pid = (pid_t) fork();
+	if (command_pid < 0) {
+		pv_perror("%s", "fork");
+		close_if_open(pipefd_cmd_in[0]);
+		close_if_open(pipefd_cmd_in[1]);
+		close_if_open(pipefd_cmd_out[0]);
+		close_if_open(pipefd_cmd_out[1]);
+		if ((NULL != pidfile_main) && (0 != remove(pidfile_main))) {
+			pv_perror("%s", pidfile_main);
+		}
+		return PV_ERROREXIT_MONITOR;
+	} else if (0 == command_pid) {
+		/* Command process. */
+
+		/* Close the write end of the "in" pipe. */
+		close_if_open(pipefd_cmd_in[1]);
+
+		/* Close the read end of the "out" pipe. */
+		close_if_open(pipefd_cmd_out[0]);
+
+		/* Put the read end of the "in" pipe on stdin. */
+		if (-1 != pipefd_cmd_in[0]) {
+			debug("replacing command stdin with fd %d", pipefd_cmd_in[0]);
+			if (dup2(pipefd_cmd_in[0], STDIN_FILENO) < 0) {
+				pv_perror("%s", "dup2");
+				exit(EXIT_FAILURE);
+			}
+			(void) close(pipefd_cmd_in[0]);
+			debug("replaced command stdin with fd %d", pipefd_cmd_in[0]);
+			pipefd_cmd_in[0] = -1;
+		}
+
+		/* Put the write end of the "out" pipe on stdout. */
+		if (-1 != pipefd_cmd_out[1]) {
+			debug("replacing command stdout with fd %d", pipefd_cmd_out[1]);
+			if (dup2(pipefd_cmd_out[1], STDOUT_FILENO) < 0) {
+				pv_perror("%s", "dup2");
+				exit(EXIT_FAILURE);
+			}
+			(void) close(pipefd_cmd_out[1]);
+			debug("replaced command stdout with fd %d", pipefd_cmd_out[1]);
+			pipefd_cmd_out[1] = -1;
+		}
+
+		/* Execute the command. */
+		(void) execvp(opts->argv[0], (char *const *) (opts->argv));	/* flawfinder: ignore */
+		pv_perror("%s", "exec");
+		exit(EXIT_FAILURE);
+
+		/*
+		 * flawfinder recommends using a library call instead of
+		 * executing another program with execvp(), but that isn't
+		 * appropriate here, the whole purpose of monitor mode is to
+		 * execute a process and monitor it.
+		 */
+	}
+
+	/* Main process, not the command process. */
+
+	/* Close the read end of the "in" pipe. */
+	close_if_open(pipefd_cmd_in[0]);
+
+	/* Close the write end of the "out" pipe. */
+	close_if_open(pipefd_cmd_out[1]);
+
+	/*
+	 * If monitoring both input and output, create pipes for the two
+	 * monitors to talk to each other in both directions.
+	 */
+	pipefd_in_to_out[0] = -1;
+	pipefd_in_to_out[1] = -1;
+	pipefd_out_to_in[0] = -1;
+	pipefd_out_to_in[1] = -1;
+	if (PV_SIDE_BOTH == opts->side) {
+		if (0 != pipe(pipefd_in_to_out)) {
+			pv_perror("%s", "pipe");
+			close_if_open(pipefd_cmd_in[1]);
+			close_if_open(pipefd_cmd_out[0]);
+			(void) kill(command_pid, SIGTERM);
+			if ((NULL != pidfile_main) && (0 != remove(pidfile_main))) {
+				pv_perror("%s", pidfile_main);
+			}
+			return PV_ERROREXIT_MONITOR;
+		}
+		debug("pipefd_in_to_out[]=(%d,%d)", pipefd_in_to_out[0], pipefd_in_to_out[1]);
+		if (0 != pipe(pipefd_out_to_in)) {
+			pv_perror("%s", "pipe");
+			close_if_open(pipefd_in_to_out[0]);
+			close_if_open(pipefd_in_to_out[1]);
+			close_if_open(pipefd_cmd_in[1]);
+			close_if_open(pipefd_cmd_out[0]);
+			(void) kill(command_pid, SIGTERM);
+			if ((NULL != pidfile_main) && (0 != remove(pidfile_main))) {
+				pv_perror("%s", pidfile_main);
+			}
+			return PV_ERROREXIT_MONITOR;
+		}
+		debug("pipefd_out_to_in[]=(%d,%d)", pipefd_out_to_in[0], pipefd_out_to_in[1]);
+	}
+
+	/*
+	 * If monitoring both input and output, create a process for
+	 * monitoring the output side.
+	 */
+	in_monitor_pid = -1;
+	out_monitor_pid = -1;
+	if (PV_SIDE_BOTH == opts->side) {
+		in_monitor_pid = (pid_t) getpid();
+		out_monitor_pid = (pid_t) fork();
+		if (out_monitor_pid < 0) {
+			pv_perror("%s", "fork");
+			close_if_open(pipefd_in_to_out[0]);
+			close_if_open(pipefd_in_to_out[1]);
+			close_if_open(pipefd_out_to_in[0]);
+			close_if_open(pipefd_out_to_in[1]);
+			close_if_open(pipefd_cmd_in[1]);
+			close_if_open(pipefd_cmd_out[0]);
+			(void) kill(command_pid, SIGTERM);
+			if ((NULL != pidfile_main) && (0 != remove(pidfile_main))) {
+				pv_perror("%s", pidfile_main);
+			}
+			return PV_ERROREXIT_MONITOR;
+		} else if (0 == out_monitor_pid) {
+			/* Output side monitoring process. */
+
+			/* Close the write end of the command "in" pipe. */
+			close_if_open(pipefd_cmd_in[1]);
+
+			/* Close the write end of the in-to-out pipe. */
+			close_if_open(pipefd_in_to_out[1]);
+
+			/* Close the read end of the out-to-in pipe. */
+			close_if_open(pipefd_out_to_in[0]);
+
+			/* Write the PID file for the subprocess, if applicable. */
+			if (NULL != pidfile_sub) {
+				if (0 != pv__write_pidfile(pidfile_sub)) {
+					/* Not written, so don't delete it. */
+					pidfile_sub = NULL;
+				}
+			}
+
+			retcode =
+			    pv__run_monitor(state, PV_SIDE_OUT, pipefd_cmd_out[0], in_monitor_pid,
+					    pipefd_in_to_out[0], pipefd_out_to_in[1], opts->size, format_options);
+
+			/* Close the other ends of the intra-monitor pipes. */
+			close_if_open(pipefd_in_to_out[0]);
+			close_if_open(pipefd_out_to_in[1]);
+
+			/* Remove the PID file, if applicable. */
+			if (NULL != pidfile_sub) {
+				if (0 != remove(pidfile_sub)) {
+					pv_perror("%s", pidfile_sub);
+				}
+			}
+
+			return retcode;
+		}
+
+		/* Input side monitoring process. */
+
+		/* Close the read end of the in-to-out pipe. */
+		close_if_open(pipefd_in_to_out[0]);
+
+		/* Close the write end of the out-to-in pipe. */
+		close_if_open(pipefd_out_to_in[1]);
+	}
+
+	/* Monitor the remaining side. */
+
+	/*
+	 * In "both" mode, the remaining side is "in", so if two sets of
+	 * name and/or format options were given, switch to using the ones
+	 * that had been given first.
+	 */
+	if (PV_SIDE_BOTH == opts->side) {
+		if (NULL != opts->name1) {
+			pv_state_name_set(state, opts->name1);
+		}
+		if (NULL != opts->format1) {
+			pv_state_format_string_set(state, opts->format1);
+		}
+		/* Trigger a format reparse. */
+		pv_state_set_format_options(state, format_options);
+	}
+
+	switch (opts->side) {
+	case PV_SIDE_NONE:
+		retcode = PV_ERROREXIT_MONITOR;
+		break;
+	case PV_SIDE_BOTH:
+	case PV_SIDE_IN:
+		/* Close the read end of the "out" pipe. */
+		close_if_open(pipefd_cmd_out[0]);
+		retcode =
+		    pv__run_monitor(state, PV_SIDE_IN, pipefd_cmd_in[1], out_monitor_pid,
+				    pipefd_out_to_in[0], pipefd_in_to_out[1], opts->size, format_options);
+		break;
+	case PV_SIDE_OUT:
+		/* Close the write end of the "in" pipe. */
+		close_if_open(pipefd_cmd_in[1]);
+		retcode =
+		    pv__run_monitor(state, PV_SIDE_OUT, pipefd_cmd_out[0], in_monitor_pid,
+				    pipefd_in_to_out[0], pipefd_out_to_in[1], opts->size, format_options);
+		break;
+	}
+
+	/*
+	 * If monitoring the "in" side, close stdout to signal EOF,
+	 * otherwise the wait for the monitored command would wait forever.
+	 */
+	if (PV_SIDE_IN == opts->side || PV_SIDE_BOTH == opts->side) {
+		if (close(STDOUT_FILENO) < 0) {
+			pv_perror("%s", "close");
+		}
+	}
+
+	/* Wait for the monitored command to exit. */
+	do {
+		/*@-type@ */
+		/* splint disagreement about __pid_t vs pid_t. */
+		pid_status = 0;
+		waited_pid = waitpid(command_pid, &pid_status, 0);
+		/*@+type@ */
+	} while (-1 == waited_pid && EINTR == errno);
+
+	/* If monitoring both sides, wait for the "out" side to exit. */
+	if (PV_SIDE_BOTH == opts->side && -1 != out_monitor_pid) {
+		/* Close our ends of the intra-monitor pipes. */
+		close_if_open(pipefd_in_to_out[1]);
+		close_if_open(pipefd_out_to_in[0]);
+		/* Wait for the "out" side to exit. */
+		do {
+			/*@-type@ */
+			/* splint disagreement about __pid_t vs pid_t. */
+			pid_status = 0;
+			waited_pid = waitpid(out_monitor_pid, &pid_status, 0);
+			/*@+type@ */
+		} while (-1 == waited_pid && EINTR == errno);
+	}
+
+	/* Remove the main monitoring process PID file, if applicable. */
+	if ((NULL != pidfile_main) && (0 != remove(pidfile_main))) {
+		pv_perror("%s", pidfile_main);
+	}
+
+	return retcode;
+}
+
+
+/*
+ * Process command-line arguments and set option flags, then call functions
+ * to initialise, and finally enter the main loop.
+ */
+int main(int argc, char **argv)
+{
+	/*@only@ */ opts_t opts = NULL;
+	/*@only@ */ pvstate_t state = NULL;
+	int retcode = 0;
+	bool can_have_eta = true;
+	bool terminal_supports_utf8 = false;
+	pvformatoptions_s format_options;
+
+#if ! HAVE_SETPROCTITLE
+	initproctitle(argc, argv);
+#endif
+
+#ifdef ENABLE_NLS
+	/* Initialise language translation. */
+	(void) setlocale(LC_ALL, "");
+	(void) bindtextdomain(PACKAGE, LOCALEDIR);
+	(void) textdomain(PACKAGE);
+#ifdef HAVE_LANGINFO_H
+	/*@-mustfreefresh@ *//* splint thinks nl_langinfo() leaks memory. */
+	if (0 == strcmp(nl_langinfo(CODESET), "UTF-8"))
+		terminal_supports_utf8 = true;
+	/*@+mustfreefresh@ */
+#endif
+#endif
+
+	/* Set an initial value for the error message prefix. */
+	pv_set_error_prefix(argv[0]);
+
+	/* Parse the command line arguments. */
+	opts = opts_parse(argc >= 0 ? (unsigned int) argc : 0, argv);
+	if (NULL == opts) {
+		debug("%s: %d", "exiting with status", PV_ERROREXIT_MEMORY);
+		return PV_ERROREXIT_MEMORY;
+	}
+
+	/* Early exit if necessary, such as with "-h". */
+	if (PV_ACTION_NOTHING == opts->action) {
+		debug("%s", "nothing to do - exiting with status 0");
+		opts_free(opts);
+		return 0;
+	}
+
+	/*
+	 * Allocate our internal state buffer.
+	 */
+	state = pv_state_alloc();
+	if (NULL == state) {
+		/*@-mustfreefresh@ */
+		/*
+		 * splint note: the gettext calls made by _() cause memory
+		 * leak warnings, but in this case it's unavoidable, and
+		 * mitigated by the fact that each string is only translated
+		 * once.
+		 */
+		pv_perror("%s", _("memory allocation failure"));
+		opts_free(opts);
+		debug("%s: %d", "exiting with status", PV_ERROREXIT_MEMORY);
+		pv_set_error_prefix(NULL);
+		return PV_ERROREXIT_MEMORY;
+		/*@+mustfreefresh@ */
+	}
+
+	/*
+	 * If no files were given, behave as if "-" was given (stdin).
+	 */
+	if (0 == opts->argc) {
+		debug("%s", "no files given - adding fake argument `-'");
+		if (!opts_add_file(opts, "-")) {
+			pv_state_free(state);
+			opts_free(opts);
+			pv_set_error_prefix(NULL);
+			return PV_ERROREXIT_MEMORY;
+		}
+	}
+
+	/*
+	 * Put the list of input files into the PV internal state.
+	 *
+	 * Don't do this in monitor mode, since the rest of PV won't be
+	 * using the list in that case.
+	 */
+	if ((NULL != opts->argv) && (PV_ACTION_MONITOR != opts->action)) {
+		pv_state_inputfiles(state, opts->argc, (const char **) (opts->argv));
+	}
+
+	/*
+	 * Put the list of watchfd items into the PV internal state.
+	 */
+	if ((opts->watchfd_count > 0) && (NULL != opts->watchfd_pid) && (NULL != opts->watchfd_fd)) {
+		pv_state_watchfds(state, opts->watchfd_count, opts->watchfd_pid, opts->watchfd_fd);
+	}
+
+	/*
+	 * Write a PID file if -P was specified and monitor mode is not
+	 * active.  When monitor mode is active, this is deferred until
+	 * within pv__monitor() so that the correct PID file can be written
+	 * depending on the monitoring side and how many -P arguments were
+	 * given.
+	 */
+	if ((NULL != opts->pidfile) && (PV_ACTION_MONITOR != opts->action)) {
+		int pidfile_rc;
+		pidfile_rc = pv__write_pidfile(opts->pidfile);
+		if (0 != pidfile_rc) {
+			pv_state_free(state);
+			opts_free(opts);
+			pv_set_error_prefix(NULL);
+			return pidfile_rc;
+		}
+	}
+
+	/*
+	 * If stderr is not a terminal and neither --force nor --numeric is
+	 * active, there will be nothing to display at all.
+	 */
+	if ((0 == isatty(STDERR_FILENO))
+	    && (false == opts->force)
+	    && (false == opts->numeric)) {
+		opts->no_display = true;
+		debug("%s", "nothing to display - setting no_display");
+	}
+
+	/*
+	 * Auto-detect width or height if either are unspecified.
+	 */
+	if ((0 == opts->width) || (0 == opts->height)) {
+		unsigned int width, height;
+		width = 0;
+		height = 0;
+		pv_screensize(&width, &height);
+		if (0 == opts->width) {
+			opts->width = width;
+			debug("%s: %u", "auto-detected terminal width", width);
+		}
+		if (0 == opts->height) {
+			opts->height = height;
+			debug("%s: %u", "auto-detected terminal height", height);
+		}
+	}
+
+	/*
+	 * Width and height bounds checking (and defaults).
+	 */
+	if (opts->width < 1)
+		opts->width = 80;
+	if (opts->height < 1)
+		opts->height = 25;
+	if (opts->width > 999999)
+		opts->width = 999999;
+	if (opts->height > 999999)
+		opts->height = 999999;
+
+	/*
+	 * Interval must be at least 0.1 second, and at most 10 minutes.
+	 */
+	if (opts->interval < 0.1)
+		opts->interval = 0.1;
+	if (opts->interval > 600)
+		opts->interval = 600;
+
+	/*
+	 * Set the output file, treating no output or "-" as stdout.  This
+	 * must be done before trying to set the size, as the size
+	 * calculation looks at the output file if the input size can't be
+	 * calculated (issue #91).
+	 *
+	 * The sparse output flag before doing this, so that in sparse mode
+	 * the lseek() on O_APPEND can be done (issue #45); see the comments
+	 * in pv_state_output_set() in src/pv/state.c.
+	 */
+	pv_state_sparse_output_set(state, opts->sparse_output);
+	retcode = pv__set_output(state, opts, opts->output);
+	if (0 != retcode) {
+		pv_state_free(state);
+		opts_free(opts);
+		pv_set_error_prefix(NULL);
+		return retcode;
+	}
+
+	/*
+	 * Copy the "stop at size" option into the main state before
+	 * checking the total size.  If pv_calc_total_size() finds that the
+	 * output is a block device, it will use the size of the block
+	 * device, and also set the stop-at-size flag.  So
+	 * pv_state_stop_at_size_set() must be called before
+	 * pv_calc_total_size(), otherwise it would undo that override.
+	 */
+	pv_state_stop_at_size_set(state, opts->stop_at_size);
+
+	/* Total size calculation, in normal transfer mode. */
+	if (PV_ACTION_TRANSFER == opts->action) {
+		/*
+		 * If no size was given, try to calculate the total size.
+		 */
+		if (0 == opts->size) {
+			pv_state_linemode_set(state, opts->linemode);
+			pv_state_null_terminated_lines_set(state, opts->null_terminated_lines);
+			opts->size = pv_calc_total_size(state);
+			debug("%s: %llu", "no size given - calculated", opts->size);
+		}
+
+		/*
+		 * If the size is unknown, ETA cannot be shown.
+		 */
+		if (opts->size < 1) {
+			can_have_eta = false;
+			debug("%s", "size unknown - ETA disabled");
+		}
+	}
+
+	/* Initialise the signal handling. */
+	pv_sig_init(state);
+
+	/*
+	 * Get the total size, in query mode.
+	 *
+	 * Since pv_remote_transferstate_fetch() uses signals, signal
+	 * handling has to have been set up first.
+	 */
+	if (PV_ACTION_QUERY == opts->action) {
+		opts->size = 0;
+		retcode = pv_remote_transferstate_fetch(state, opts->query, &(opts->size), false);
+		if (0 != retcode) {
+			pv_sig_fini(state);
+			pv_state_free(state);
+			opts_free(opts);
+			pv_set_error_prefix(NULL);
+			return retcode;
+		}
+		/* As above - no ETA if the size is unknown. */
+		if (opts->size < 1) {
+			can_have_eta = false;
+			debug("%s", "size unknown - ETA disabled");
+		}
+	}
+
+	/*
+	 * Copy the remaining parameters from the options into the main
+	 * state.
+	 */
+
+	pv_state_interval_set(state, opts->interval);
+	pv_state_width_set(state, opts->width, opts->width_set_manually);
+	pv_state_height_set(state, opts->height, opts->height_set_manually);
+	pv_state_no_display_set(state, opts->no_display);
+	pv_state_force_set(state, opts->force);
+	pv_state_cursor_set(state, opts->cursor);
+	pv_state_use_osc94_set(state, opts->use_osc94);
+	pv_state_show_stats_set(state, opts->show_stats);
+	pv_state_numeric_set(state, opts->numeric);
+	pv_state_wait_set(state, opts->wait);
+	pv_state_delay_start_set(state, opts->delay_start);
+	pv_state_rate_gauge_set(state, opts->rate_gauge);
+	pv_state_linemode_set(state, opts->linemode);
+	pv_state_bits_set(state, opts->bits);
+	pv_state_decimal_units_set(state, opts->decimal_units);
+	pv_state_null_terminated_lines_set(state, opts->null_terminated_lines);
+	pv_state_skip_errors_set(state, opts->skip_errors);
+	pv_state_error_skip_block_set(state, opts->error_skip_block);
+	pv_state_sync_after_write_set(state, opts->sync_after_write);
+	pv_state_direct_io_set(state, opts->direct_io);
+	pv_state_discard_input_set(state, opts->discard_input);
+	pv_state_rate_limit_set(state, opts->rate_limit, opts->rate_limit_specified, opts->rate_limit_active);
+	pv_state_target_buffer_size_set(state, opts->buffer_size);
+	pv_state_no_splice_set(state, opts->no_splice);
+	pv_state_pipe_buffer_size_set(state, opts->pipe_buffer_size);
+	pv_state_size_set(state, opts->size);
+	pv_state_name_set(state, opts->name);
+	pv_state_default_bar_style_set(state, opts->default_bar_style);
+	pv_state_format_string_set(state, opts->format);
+	pv_state_extra_display_set(state, opts->extra_display);
+	pv_state_average_rate_window_set(state, opts->average_rate_window);
+
+	format_options.progress = opts->progress;
+	format_options.timer = opts->timer;
+	format_options.eta = can_have_eta ? opts->eta : false;
+	format_options.fineta = can_have_eta ? opts->fineta : false;
+	format_options.rate = opts->rate;
+	format_options.average_rate = opts->average_rate;
+	format_options.bytes = opts->bytes;
+	format_options.bufpercent = opts->bufpercent;
+	format_options.lastwritten = opts->lastwritten;
+
+	pv_state_set_format_options(state, format_options);
+
+	debug("%s: %s", "terminal_supports_utf8", terminal_supports_utf8 ? "true" : "false");
+	pv_state_set_terminal_supports_utf8(state, terminal_supports_utf8);
+
+	/* Run the appropriate main loop. */
+	switch (opts->action) {
+	case PV_ACTION_NOTHING:
+		break;
+	case PV_ACTION_TRANSFER:
+		/* Normal "transfer data" mode. */
+		pv_state_cancel_output_if_empty_format_string(state);
+		retcode = pv_main_loop(state);
+		break;
+	case PV_ACTION_STORE_AND_FORWARD:
+		/* Store-and-forward transfer mode. */
+		pv_state_cancel_output_if_empty_format_string(state);
+		retcode = pv__store_and_forward(state, opts, format_options);
+		break;
+	case PV_ACTION_WATCHFD:
+		/* "Watch file descriptor(s) of another process" mode. */
+		retcode = pv_watchfd_loop(state);
+		break;
+	case PV_ACTION_REMOTE_CONTROL:
+		/* Change the options of another running pv. */
+		retcode = pv_remote_set(state, opts->remote);
+		break;
+	case PV_ACTION_QUERY:
+		/* Query the progress of another running pv. */
+		retcode = pv_query_loop(state, opts->query);
+		break;
+	case PV_ACTION_MONITOR:
+		/* Run a process and monitor its input and output. */
+		retcode = pv__monitor(state, opts, format_options);
+		break;
+	}
+
+	/*
+	 * Remove the PID file, if one was written.  In monitor mode, this
+	 * is instead handled within pv__monitor() so that the right PID
+	 * file for the running side is removed.
+	 */
+	if ((NULL != opts->pidfile) && (PV_ACTION_MONITOR != opts->action)) {
+		if (0 != remove(opts->pidfile)) {
+			pv_perror("%s", opts->pidfile);
+		}
+	}
+
+	/* Close down the signal handling. */
+	pv_sig_fini(state);
+
+	/* Free the internal PV state. */
+	pv_state_free(state);
+
+	/* Free the data from parsing the command-line arguments. */
+	opts_free(opts);
+
+	/* Clear the error message prefix. */
+	pv_set_error_prefix(NULL);
+
+	debug("%s: %d", "exiting with status", retcode);
+
+	return retcode;
+}

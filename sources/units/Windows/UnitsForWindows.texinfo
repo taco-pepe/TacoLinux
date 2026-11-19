@@ -1,0 +1,483 @@
+\input texinfo   @c -*-texinfo-*-
+@c %**start of header
+@setfilename UnitsForWindows.info
+@finalout
+@setchapternewpage off
+@firstparagraphindent none
+@set EDITION 2.21
+@set VERSION 2.24
+@set OSVERSION 10
+@set TKVERSION 10.4
+@set VSVERSION 2022
+@set BUILDDATE @w{21 November} 2024
+@c %**end of header
+
+@copying
+This manual is for GNU @command{units} (version @value{VERSION}) on
+Microsoft Windows@registeredsymbol{}.
+
+Copyright @copyright{} 2016--2024 Free Software Foundation, Inc.
+
+@end copying
+
+@titlepage
+@title GNU @command{units} for Windows
+@subtitle Edition @value{EDITION} for @command{units} Version @value{VERSION}
+@author Jeff Conrad
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+@contents
+
+@iftex
+@headings off
+@everyheading @command{units} for Windows @| @| @thispage
+@end iftex
+
+@macro label {text}
+@w{@sansserif{\text\}}
+@end macro
+
+@macro button {text}
+@w{@sansserif{\text\}}
+@end macro
+
+@node Introduction
+@unnumbered Introduction
+
+The @command{units} program converts quantities expressed in various
+systems of measurement to their equivalents in other systems of
+measurement.  Like many similar programs, it can handle multiplicative
+scale changes; but it can also handle nonlinear conversions such as
+Fahrenheit to Celsius.  The program can also perform conversions from
+and to sums of units, such as converting between meters and feet plus
+inches.
+
+Basic operation is simple: at the @w{@samp{You have:}} prompt, enter the unit
+from which you want to convert; at the subsequent @w{@samp{You want:}} prompt,
+enter the unit to which you want to convert. For example,
+
+@example
+You have: ft
+You want: m
+        * 0.3048
+        / 3.2808399
+@end example
+
+@noindent
+In other words, 1 foot is equal to 0.3048 meter (exactly), and 1 meter
+is equal to approximately 3.2808339 feet.
+
+To quit the program, press @key{Ctrl-C} or @key{Ctrl-Z}; with the
+latter, you may need to press @key{Enter}.
+
+@node Documentation
+@unnumberedsec Documentation
+
+The program's features are described in detail in the user manual
+@ref{Top,,,units,Units Conversion}.  If you created a Start Menu folder
+for @command{units}, you can access the user manual from the Start Menu
+by scrolling until the @label{units} (or whatever name you specified
+during installation) folder appears, clicking on it, and clicking
+@label{Units User Manual} from the submenu that appears.
+
+Procedures for accessing items from the Start Menu vary among Windows
+versions and configurations.  Those described here apply to @w{Windows 10}.
+
+@node Build
+@unnumberedsec Build
+Beginning with version 2.21, @command{units} is compiled as a 64-bit
+executable.  If a previous 32-bit installation is detected, the
+installer prompts you to remove it; if you decline, the installation is
+aborted.
+
+@node Running units
+@unnumbered Running @command{units}
+
+@node Start Menu
+@unnumberedsec Start Menu
+If you created a Start Menu folder for units, you can run the program
+from the Start Menu by scrolling until the @label{units} (or whatever
+name you specified during installation) folder appears, clicking on it,
+and clicking @label{units} from the submenu that appears.  If Windows
+Terminal is installed, there will be an additional shortcut
+@label{units WT} that uses Windows Terminal, with Unicode support.
+
+@node Desktop Shortcut
+@unnumberedsec Desktop Shortcut
+If you created a Desktop shortcut during installation, you can start the
+program by double clicking the shortcut.
+
+@node A Note on Windows Terminal Applications
+@unnumberedsec A Note on Windows Terminal Applications
+
+Beginning with @w{Windows 10}, there are two host applications that
+shortcuts can use: Windows Console Host, the traditional console, and
+Windows Terminal, a newer terminal emulator with many additional
+features.  Windows Terminal supports Unicode; Windows Console Host does
+not.
+
+Windows Terminal is included with @w{Windows 11}; on @w{Windows 10}, you
+may need to obtain it from the Microsoft Store.
+
+The installation process creates a shortcut that uses Windows Console
+Host; if Windows Terminal is installed, the process creates an
+additional shortcut @label{units WT} that uses Windows Terminal, with
+Unicode support.
+
+@node Windows Console Host
+@unnumberedsubsec Windows Console Host
+When @command{units} is run in Windows Console Host, it will always
+appear in a new window that displays the units icon; this is the same
+behavior as with previous versions of @command{units}.  There is no
+support for Unicode.
+
+@node Windows Terminal
+@unnumberedsubsec Windows Terminal
+In addition to support for Unicode, Windows Terminal's features include
+multiple tabs, panes, a GPU-accelerated text-rendering engine, and the
+ability to create your own themes and customize text, colors,
+backgrounds, and shortcuts.  When @command{units} is started from a
+Windows Terminal shortcut, the behavior depends on how Windows Terminal
+is configured.  By default, each instance of @command{units} will run in
+a new window that displays a Windows console icon.  The configuration
+can be changed to have @command{units} run in a new tab in an existing
+Windows Terminal window.
+
+The Windows Terminal shortcut created by the installation process is
+
+@example
+@label{wt.exe cmd /c title units && chcp 65001>NUL && "C:\Program Files\GNU\units\units.exe"}
+@end example
+
+@noindent
+The Windows command interpreter @command{cmd} is needed because several
+commands are to be run: the first sets the window title to
+@label{units}; the second sets the Windows code page to UTF-8.
+
+If you are familiar with Windows Terminal, you can create a profile for
+units and determine the behavior and appearance of the window or tab.
+In such a profile, you can specify, among others, the
+@label{Command line}, the @label{Starting directory}, and the
+@label{Icon}.  To have the units icon display on the Windows Terminal
+tab, you need to specify the units icon; you can specify either the
+executable @label{C:\Program Files\GNU\units\units.exe} or the units
+icon file @label{C:\Program Files\GNU\units\unitsprog.ico}.  Unless the
+Windows locale is set to UTF-8, the command line will need to set the
+code page to 65001, e.g.,
+
+@example
+@label{cmd /c chcp 65001>NUL && "C:\Program Files\GNU\units\units.exe"}
+@end example
+
+If you create a profile named @label{units} with the appropriate
+settings, you could change the shortcut to
+
+@example
+@label{wt.exe -p units}
+@end example
+
+@noindent
+See the Microsoft documentation for Windows Terminal for more information.
+
+@node Command Line
+@unnumberedsec Command Line
+
+Running @command{units} from the command line affords the greatest
+flexibility---especially the ability to specify startup options.  There
+are several ways to run @command{units} from the command line.
+
+@noindent
+@b{Command Prompt window.} Start an instance of the Windows command
+prompt.  Click in the taskbar search box and enter @kbd{cmd};
+@label{Command Prompt} should appear at or near the top of the list
+of results.  Click on @label{Command Prompt}, or just press
+@key{Enter} if it is already highlighted; a command-prompt window should
+appear.  Alternatively, right-click on the Start Menu icon and select
+@label{Command Prompt} from the menu.
+
+Start the units program, giving any desired options after the command.
+If you added the @command{units} directory to @env{PATH}, you can simply
+type @kbd{units} and press @key{Enter}; if not, you will need to enter
+the complete path name, enclosing it in double quotes if it contains
+spaces, e.g., @w{@kbd{"C:\Program Files\GNU\units\units.exe"}}.
+
+With some options, e.g., @option{--help}, @command{units} displays
+information about the program and then exits.  For these options,
+running from a command-prompt window is the only practical option.
+
+@noindent
+@b{Taskbar Search Box.} You can also run @command{units} directly from
+the taskbar search box.  Click in the search box and enter @kbd{units},
+along with any options you wish to specify; @label{units} should be at
+or near the top of the list of results.  Click on @label{units}, or
+simply press @key{Enter} if @label{units} is already highlighted;
+@command{units} should appear in a new console window.
+
+@noindent
+@b{Start Menu Run Box.} Click in the taskbar search box and enter
+@kbd{Run}; @label{Run} should be at or near the top of the list of
+results.  Click on @label{Run}, or just press @key{Enter} if @label{Run}
+is already highlighted; the Run box should appear.  Enter @kbd{units},
+along with any options you wish to specify, and press @key{Enter};
+@command{units} should appear in a new console window.
+
+Using the Run box requires an additional step, but has the advantage of
+remembering recent commands; this can be helpful if you frequently
+invoke @command{units} with the complete path name or with options.
+
+@node Startup Options
+@unnumberedsec Startup Options
+
+The behavior of @command{units} can be customized by specifying one or
+more options at startup.  For example, you can enter
+
+@example
+units -dmax
+@end example
+
+@noindent
+to have units show results to the maximum available precision.  The
+options are described in detail under
+@ref{Invoking Units,,,units,Units Conversion}.
+
+Note: unlike most Windows command-line programs, options to units must
+begin with @samp{-} rather than @samp{/}.  The options are also case sensitive.
+
+It's probably easiest to specify options when @command{units} is
+started from a command-prompt window.  Options can also be given from
+the Run box on the Start Menu just as they are given from a command
+window; however, if you give an invalid option or an invalid value, the
+console window that appears will probably close before you can see the
+error message.
+
+If you frequently use a particular option, you can modify a shortcut on
+the Desktop or the Start Menu to include it.  Select the appropriate
+shortcut, right click and select @label{Properties}, and select the
+@label{Shortcut} tab.  In the @label{Target} box, append the desired
+option(s) and click @button{OK}.  For example, if the @label{Target} box
+contains
+
+@example
+"C:\Program Files\GNU\units\units.exe"
+@end example
+
+@noindent
+and you always wanted units to show values to the maximum available
+precision, you could change this to
+
+@example
+"C:\Program Files\GNU\units\units.exe" -dmax
+@end example
+
+Be careful to enter the option(s) correctly---otherwise the units window
+will probably close before you can see the error message that results
+from an invalid option.  As mentioned, this approach cannot be used with
+options such as @option{--help} that simply display information about
+the program and then exit.
+
+If you wish, you can have different shortcuts that give different
+options---but keeping track of which shortcut does what can quickly
+become a challenge. 
+If you frequently need to use different options,
+the best approach is to set the options interactively
+(@pxref{Setting Options Interactively})
+or start units from the command line.
+
+You can also customize the appearance of a window started from a
+shortcut, specifying the font and size, the foreground and background
+colors, and the size of the window.  If you want to copy and paste from
+the @command{units} window, right click on the window title bar, select
+the @label{Options} tab and ensure that the box next to
+@label{QuickEdit Mode} is checked.
+
+@node Setting Options Interactively
+@unnumberedsec Setting Options Interactively
+
+Many command-line options can be set interactively using the @kbd{set}
+command; this can be especially helpful if you start @command{units}
+from a shortcut---@pxref{Setting Options Interactively,,,units,Units Conversion})
+for more information.
+
+@node Command Editing
+@unnumberedsec Command Editing
+
+At present, units for Windows does not include readline support
+(@pxref{Readline Support,,,units,Units Conversion}).  But both intraline
+editing and command history are available just as they are with any
+instance of the Windows command prompt---see the Windows
+documentation for @command{doskey} for a complete description.
+
+Command editing may not be available if you start units from a different
+command interpreter.
+
+@node Uninstalling Units
+@unnumbered Uninstalling Units
+
+Unless you declined to create a Start Menu folder for @command{units},
+you can uninstall @command{units} from the Start Menu by scrolling until
+the @label{units} (or whatever name you specified during installation)
+folder appears, clicking on it, and selecting @label{Uninstall units}
+from the submenu that appears.  You will be asked to confirm that you
+want to remove units; if you click the @button{Yes} button, the
+uninstallation will proceed.  The process may take several seconds after
+the progress bar indicates completion as Windows updates its internal
+settings.
+
+If you don't have a Start Menu folder for @command{units}, you can
+uninstall units via @label{Settings > Apps > Apps & features}.
+Scroll to find @label{units version @value{VERSION}}, and click the
+@button{Uninstall} button.  A dialog box will indicate that the
+application will be uninstalled; click the @button{Uninstall} button if
+you wish to proceed.  The process may take several seconds after the
+progress bar indicates completion as Windows updates its internal
+settings.
+
+You can also uninstall units via
+@label{Control Panel > Programs and Features}.
+When the list is displayed,
+find @label{units version @value{VERSION}} and click
+@button{Uninstall}.  You will be asked to confirm that you want to
+remove units; if you click the @button{Yes} button, the uninstallation
+will proceed.
+
+@node Removing units from PATH
+@unnumberedsec Removing @command{units} from @env{PATH}
+
+By default, the installation adds the @command{units} installation
+directory to the @env{PATH} environment variable;  with versions earlier
+than 2.21, this directory was not removed from @env{PATH} upon
+uninstallation.  With version 2.21, the @command{units} directory
+@emph{is} removed from @env{PATH}, and the @command{units} directory
+from a previous 32-bit installation is removed from @env{PATH} when a
+64-bit version is installed.
+
+
+If for some reason the @command{units} directory is not removed from
+@env{PATH}, you can remove it via the @label{System Properties}
+dialog.  In the taskbar search box, enter @kbd{environment variables}
+and select @label{Edit environment variables for your account}; this
+should open the @label{Environment Variables} dialog.  Select
+@label{Path} in the list of environment variables for your account or
+for the system, click the @button{Edit...} button, select the entry for
+@command{units}, and click the @button{Delete} button.
+
+On most Windows versions, the @label{System Properties} dialog can be
+accessed by right-clicking the computer icon on the desktop.  The
+procedure for editing @env{PATH} on versions earlier than @w{Windows 10}
+may be slightly different from the one above.
+
+@node Icons and File Association
+@unnumbered Icons and File Association
+
+The installation process associates @command{units} data files with the
+@command{notepad} editor; double-clicking on the file icon opens the
+file for editing.  The installation process
+places two icons---@file{unitsfile.ico} and @file{unitsprog.ico}---in
+the installation folder.  The former is the default icon for
+@command{units} data files; the latter may be useful if you wish to
+create an additional shortcut.
+
+@node Currency Definitions and CPI Updater
+@unnumbered Currency Definitions and CPI Updater
+
+The script @command{units_cur.py} can be used to update currency
+exchange definitions and the US Consumer Price Index (if your system
+hides file extensions, this script will display as @command{units_cur}).
+The script requires Python (available from @url{https://www.python.org/}).
+
+@node Installing Python
+@unnumberedsec Installing Python
+
+If you want to use the currency updater, install Python if it is not
+already installed.  If you need to install Python, unless you have (or
+anticipate having) applications that depend on @w{Python 2}, the best
+choice is probably to install @w{Python 3}.
+
+After installing Python, you should be able to run
+@command{units_cur.py} using the shortcut on the Start Menu, or if you
+have added the units installation directory to your @env{PATH}, from a
+command-prompt window.
+
+When you first run @command{units_cur.py}, you may get a complaint about
+a missing module; for example
+
+@codequoteundirected on
+@example
+ModuleNotFoundError: No module named 'requests'
+@end example
+@codequoteundirected off
+
+@noindent
+If so, you will need to install the missing module.  The easiest way to
+do this is with the @command{pip} command; for example
+
+@example
+pip install requests
+@end example
+
+@noindent
+If you have @w{Python 2.7.9} or later or @w{Python 3.4} or later, you
+should have @command{pip}, though you may need to upgrade to the latest
+version.  If you do not have @command{pip}, you will need to install it
+manually; see the Python documentation or the Python website for
+instructions on how to do this.
+
+@node Setting @env{PATHEXT}
+@unnumberedsec Setting @env{PATHEXT}
+
+If you add @code{.py} to the @env{PATHEXT} environment variable, you can
+simply type @command{units_cur} to run the updater from a command-prompt
+window.  You can do this from the command prompt by typing
+
+@example
+set PATHEXT=%PATHEXT%;.py
+@end example
+
+@noindent
+but you'll need to do this with every new instance.  You can make a
+permanent change by adding @code{;.py} to @env{PATHEXT} from the
+Advanced tab of the System dialog: click the @button{Environment Variables}
+button, find @env{PATHEXT} in either the list of User variables or the
+list of System variables; click the @button{Edit} button, make the change, and
+click @button{OK}.
+
+@node Running the Updater
+@unnumbered Running the Updater
+
+@node Updating from the Start Menu
+@unnumberedsec Updating from the Start Menu
+
+If you created a Start Menu folder for @command{units}, you can update
+the currency exchange definitions and the US CPI by finding that folder
+on the Start Menu and clicking the @w{@samp{Currency updater}} entry.
+
+@node Updating from a Command Prompt
+@unnumberedsec Updating from a Command Prompt
+
+If you have added the program installation directory to @env{PATH}, you
+can update the currency exchange definitions from the command prompt by
+typing @command{units_cur.py} (or simply @command{units_cur} if you have
+added @code{.py} to @env{PATHEXT}).
+
+@node Automatic Updates
+@unnumberedsec Automatic Updates
+
+The easiest way to keep currency values and US CPI up to date is by
+having the Windows Task Scheduler run @command{units_cur.py} on a
+regular basis.  The Task Scheduler is fussy about the format for the
+action, which must be an executable file; an entry might look something
+like
+
+@example
+C:\Windows\py.exe "C:\Program Files\GNU\units\units_cur.py"
+@end example
+
+@noindent
+if the Python launcher is in @file{C:\Windows} and the script is in
+@file{C:\Program Files\GNU\units}.  The program specified must
+start in the @command{units} installation directory; the starting
+directory must be specified @emph{without} quotes.
+
+@bye

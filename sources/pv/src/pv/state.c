@@ -1,0 +1,988 @@
+/*
+ * State management functions.
+ *
+ * Copyright 2002-2008, 2010, 2012-2015, 2017, 2021, 2023-2026 Andrew Wood
+ *
+ * License GPLv3+: GNU GPL version 3 or later; see `docs/COPYING'.
+ */
+
+#include "config.h"
+#include "pv.h"
+#include "pv-internal.h"
+
+/*
+ * Do not use non-blocking I/O, because it has caused problems with some
+ * applications, such as dd, in the past.
+ */
+/* #undef MAKE_OUTPUT_NONBLOCKING */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+
+
+/*
+ * Allocate or reallocate the history buffer for calculating average
+ * transfer rate.
+ */
+static void pv_alloc_calc_history(pvtransfercalc_t calc)
+{
+	if (NULL != calc->history)
+		free(calc->history);
+	calc->history = NULL;
+
+	calc->history = calloc((size_t) (calc->history_len), sizeof(calc->history[0]));
+	if (NULL == calc->history) {
+		/*@-mustfreefresh@ */
+		/*
+		 * splint note: the gettext calls made by _() cause
+		 * unavoidable memory leak warnings, but they are mitigated
+		 * by the fact that each string is only translated once.
+		 */
+		pv_perror("%s", _("memory allocation failure"));
+		/*@+mustfreefresh@ */
+		return;
+	}
+
+	/*
+	 * Explicitly set these values to zero, as memset() is not
+	 * recommended for floating point types.
+	 */
+	calc->history_first = calc->history_last = 0;
+	calc->history[0].elapsed_sec = 0.0;
+}
+
+
+/*
+ * Set the "calc" state sub-structure's history length appropriately for the
+ * given average rate window setting, allocate an appropriate history, and
+ * return the appropriate history interval to use.
+ */
+unsigned int pv_update_calc_average_rate_window(pvtransfercalc_t calc, unsigned int val)
+{
+	unsigned int history_interval;
+
+	if (val < 1)
+		val = 1;
+
+	if (val >= 20) {
+		calc->history_len = (size_t) (val / 5 + 1);
+		history_interval = 5;
+	} else {
+		calc->history_len = (size_t) (val + 1);
+		history_interval = 1;
+	}
+
+	pv_alloc_calc_history(calc);
+
+	return history_interval;
+}
+
+
+/*
+ * Clear the "calc" part of a state structure.
+ */
+void pv_reset_calc(pvtransfercalc_t calc)
+{
+	if (NULL == calc)
+		return;
+	/*
+	 * Explicitly set important floating point values to 0, as memset()
+	 * is not recommended for this.
+	 */
+	calc->transfer_rate = 0.0;
+	calc->average_rate = 0.0;
+	calc->prev_elapsed_sec = 0.0;
+	calc->prev_rate = 0.0;
+	calc->prev_trans = 0.0;
+	calc->current_avg_rate = 0.0;
+	calc->rate_min = 0.0;
+	calc->rate_max = 0.0;
+	calc->rate_sum = 0.0;
+	calc->ratesquared_sum = 0.0;
+	calc->measurements_taken = 0;
+	calc->prev_transferred = 0;
+	calc->percentage = 0.0;
+	calc->history_first = calc->history_last = 0;
+	if (NULL != calc->history) {
+		calc->history[0].elapsed_sec = 0.0;
+	}
+}
+
+
+/*
+ * Clear the "transfer" part of a state structure.
+ */
+void pv_reset_transfer(pvtransferstate_t transfer)
+{
+	if (NULL == transfer)
+		return;
+
+	transfer->elapsed_seconds = 0.0;
+	transfer->read_position = 0;
+	transfer->write_position = 0;
+	transfer->to_write = 0;
+	transfer->written = 0;
+	transfer->total_bytes_read = 0;
+	transfer->total_written = 0;
+	transfer->written_but_not_consumed = 0;
+	transfer->read_errors_in_a_row = 0;
+	transfer->last_read_skip_fd = 0;
+#ifdef HAVE_COPY_FILE_RANGE
+	transfer->copy_file_range_failed_fd = -1;
+#endif				/* HAVE_COPY_FILE_RANGE */
+#ifdef HAVE_SPLICE
+	transfer->splice_failed_fd = -1;
+	transfer->intermediate_pipe[0] = -1;
+	transfer->intermediate_pipe[1] = -1;
+	transfer->discard_fd = -1;
+#endif				/* HAVE_SPLICE */
+
+	transfer->line_positions_length = 0;
+	transfer->line_positions_head = 0;
+	transfer->last_output_position = 0;
+	transfer->output_not_seekable = false;
+}
+
+
+/*
+ * Reset the calculated parts of the "flags" state structure.
+ */
+void pv_reset_flags(pvtransientflags_t flags)
+{
+	if (NULL == flags)
+		return;
+	flags->reparse_display = 1;
+}
+
+
+/*
+ * Reset the calculated parts of a "display" state structure.
+ */
+void pv_reset_display(pvdisplay_t display)
+{
+	if (NULL == display)
+		return;
+	display->initial_offset = 0;
+	display->output_produced = false;
+}
+
+
+/*
+ * Clear the calculated parts of a state structure.
+ */
+void pv_state_reset(pvstate_t state)
+{
+	if (NULL == state)
+		return;
+
+	pv_reset_flags(&(state->flags));
+	state->status.current_input_file = -1;
+
+	pv_reset_display(&(state->display));
+	pv_reset_display(&(state->extra_display));
+
+	pv_reset_calc(&(state->calc));
+	pv_reset_transfer(&(state->transfer));
+}
+
+
+/*
+ * Prepare an already-used state structure for re-use with another transfer,
+ * by closing any open intermediate file descriptors within it, freeing
+ * display, transfer, and calculated rate buffers, and resetting all
+ * calculated parts.
+ */
+void pv_state_reuse(pvstate_t state)
+{
+	if (NULL == state)
+		return;
+
+	pv_freecontents_display(&(state->display));
+	pv_freecontents_display(&(state->extra_display));
+	pv_freecontents_transfer(&(state->transfer));
+	pv_freecontents_calc(&(state->calc));
+
+	pv_state_reset(state);
+}
+
+
+/*
+ * Create a new state structure, and return it, or NULL on error.
+ */
+pvstate_t pv_state_alloc(void)
+{
+	pvstate_t state;
+	size_t try_size;
+
+	state = calloc(1, sizeof(*state));
+	if (NULL == state)
+		return NULL;
+	memset(state, 0, sizeof(*state));
+
+	state->watchfd.count = 0;
+	state->control.output_fd = -1;
+	state->control.othermonitor_pid = 0;
+	state->control.othermonitor_read_fd = -1;
+	state->control.othermonitor_write_fd = -1;
+#ifdef HAVE_IPC
+	state->cursor.shmid = -1;
+	state->cursor.pvcount = 1;
+#endif				/* HAVE_IPC */
+	state->cursor.lock_fd = -1;
+
+	pv_state_reset(state);
+
+#ifdef HAVE_GETCWD
+	/*
+	 * Get the current working directory, if possible, as a base for
+	 * showing relative filenames with --watchfd.
+	 *
+	 * If this fails then --watchfd will fall back to always showing the
+	 * full path.
+	 */
+	for (try_size = 32; try_size <= 16384; try_size = try_size * 2) {
+		bool buffer_too_small;
+
+		if (NULL != state->status.cwd) {
+			free(state->status.cwd);
+			state->status.cwd = NULL;
+		}
+		/*@-mustfreeonly@ *//* splint mis-detects this as a memory leak. */
+		state->status.cwd = malloc(try_size);
+		/*@+mustfreeonly@ */
+		if (NULL == state->status.cwd)
+			break;
+
+		buffer_too_small = false;
+		if (NULL == getcwd(state->status.cwd, try_size)) {
+			if (errno != ERANGE)
+				buffer_too_small = true;
+			free(state->status.cwd);
+			state->status.cwd = NULL;
+		}
+
+		if (!buffer_too_small)
+			break;
+	}
+#endif				/* HAVE_GETCWD */
+
+	return state;
+}
+
+
+/*
+ * Free dynamic contents of a display structure.
+ */
+void pv_freecontents_display(pvdisplay_t display)
+{
+	if (NULL != display->display_buffer)
+		free(display->display_buffer);
+	display->display_buffer = NULL;
+}
+
+
+/*
+ * Free dynamic contents of a transfer state structure.
+ */
+void pv_freecontents_transfer(pvtransferstate_t transfer)
+{
+	/*@-keeptrans@ */
+	if (NULL != transfer->transfer_buffer)
+		free(transfer->transfer_buffer);
+	transfer->transfer_buffer = NULL;
+	/*@+keeptrans@ */
+	/* splint - explicitly freeing this structure, so free() here is OK. */
+
+#ifdef HAVE_SPLICE
+	/* Close the intermediate pipe, if there was one. */
+	if (transfer->intermediate_pipe_buffer_size > 0) {
+		int idx;
+		for (idx = 0; idx < 2; idx++) {
+			if (transfer->intermediate_pipe[idx] >= 0) {
+				(void) close(transfer->intermediate_pipe[idx]);
+				transfer->intermediate_pipe[idx] = -1;
+			}
+		}
+	}
+
+	/* Close the discard file descriptor, if there was one. */
+	if (transfer->discard_fd >= 0) {
+		(void) close(transfer->discard_fd);
+		transfer->discard_fd = -1;
+	}
+#endif				/* HAVE_SPLICE */
+
+	if (NULL != transfer->line_positions)
+		free(transfer->line_positions);
+	transfer->line_positions = NULL;
+}
+
+
+/*
+ * Free dynamic contents of a calculated transfer state structure.
+ */
+void pv_freecontents_calc(pvtransfercalc_t calc)
+{
+	if (NULL != calc->history)
+		free(calc->history);
+	calc->history = NULL;
+}
+
+
+/*
+ * Free the contents of a watchfd watched-items array.
+ */
+void pv_freecontents_watchfd_items(struct pvwatcheditem_s *watching, unsigned int count)
+{
+	unsigned int watch_idx;
+
+	if (NULL == watching)
+		return;
+
+	/*@-compdestroy@ */
+	for (watch_idx = 0; watch_idx < count; watch_idx++) {
+		int info_idx;
+		if (NULL == watching[watch_idx].info_array)
+			continue;
+		for (info_idx = 0; info_idx < watching[watch_idx].array_length; info_idx++) {
+			pv_freecontents_watchfd(&(watching[watch_idx].info_array[info_idx]));
+		}
+		free(watching[watch_idx].info_array);
+		watching[watch_idx].info_array = NULL;
+		watching[watch_idx].array_length = 0;
+	}
+
+	return;
+	/*@+compdestroy @ */
+	/*
+	 * splint warns that watching[].info_array->transfer.transfer_buffer
+	 * and other deep structures may not be deallocated and so leak
+	 * memory, but that's what pv_freecontents_watchfd() takes care of.
+	 */
+}
+
+
+/*
+ * Truncate the output file descriptor to its current position, if it's a
+ * valid fd, sparse output mode is active, and no lseek() failed.
+ */
+static void pv_truncate_output(pvstate_t state)
+{
+	off_t current_offset;
+
+	if (!state->control.sparse_output)
+		return;
+	if (state->transfer.output_not_seekable)
+		return;
+	if (state->control.output_fd < 0)
+		return;
+
+	current_offset = (off_t) lseek(state->control.output_fd, (off_t) 0, SEEK_CUR);
+	if (current_offset == (off_t) - 1)
+		return;
+
+	debug("%s: %ld", "truncating to current offset", (long) current_offset);
+
+	/*@+longintegral@ */
+	/*
+	 * splint has trouble with off_t / __off_t.
+	 */
+	if (0 != ftruncate(state->control.output_fd, current_offset)) {
+		debug("%s: %s", "output ftruncate() failed", strerror(errno));
+	}
+	/*@-longintegral@ */
+}
+
+
+/*
+ * Free a state structure, after which it can no longer be used.
+ */
+void pv_state_free(pvstate_t state)
+{
+	if (0 == state)
+		return;
+
+	/*
+	 * Close the output file first, while the output filename is still
+	 * available to include in an error message.
+	 */
+	if (state->control.output_fd >= 0) {
+		pv_truncate_output(state);
+		if (STDOUT_FILENO != state->control.output_fd) {
+			if (close(state->control.output_fd) < 0) {
+				pv_perror("%s",
+					  NULL == state->control.output_name ? "(null)" : state->control.output_name);
+			}
+		}
+		state->control.output_fd = -1;
+	}
+
+	if (NULL != state->control.output_name) {
+		free(state->control.output_name);
+		state->control.output_name = NULL;
+	}
+
+	if (NULL != state->status.cwd) {
+		free(state->status.cwd);
+		state->status.cwd = NULL;
+	}
+
+	pv_freecontents_display(&(state->display));
+	pv_freecontents_display(&(state->extra_display));
+
+	if (NULL != state->control.name) {
+		free(state->control.name);
+		state->control.name = NULL;
+	}
+
+	if (NULL != state->control.default_bar_style) {
+		free(state->control.default_bar_style);
+		state->control.default_bar_style = NULL;
+	}
+
+	if (NULL != state->control.format_string) {
+		free(state->control.format_string);
+		state->control.format_string = NULL;
+	}
+
+	if (NULL != state->control.extra_display_spec) {
+		free(state->control.extra_display_spec);
+		state->control.extra_display_spec = NULL;
+	}
+
+	if (NULL != state->control.extra_format_string) {
+		free(state->control.extra_format_string);
+		state->control.extra_format_string = NULL;
+	}
+
+	pv_freecontents_transfer(&(state->transfer));
+
+	pv_freecontents_calc(&(state->calc));
+
+	if (NULL != state->files.filename) {
+		unsigned int file_idx;
+		for (file_idx = 0; file_idx < state->files.file_count; file_idx++) {
+			/*@-unqualifiedtrans@ */
+			free(state->files.filename[file_idx]);
+			/*@+unqualifiedtrans@ */
+			/* splint: see similar code below. */
+		}
+		free(state->files.filename);
+		state->files.filename = NULL;
+	}
+
+	if (NULL != state->watchfd.watching) {
+		pv_freecontents_watchfd_items(state->watchfd.watching, state->watchfd.count);
+		free(state->watchfd.watching);
+		state->watchfd.watching = NULL;
+	}
+
+	free(state);
+
+	return;
+}
+
+
+/*
+ * Set the format options and use them to build a default formatting string.
+ * The default string is used if no format string is explicitly set.
+ *
+ * Call this *after* setting a name, so it can determine whether there
+ * should be a name in the default format.
+ */
+void pv_state_set_format_options(pvstate_t state, pvformatoptions_s format)
+{
+#define PV_ADDFORMAT(x,y) if (x) { \
+		if (state->control.default_format[0] != '\0') \
+			(void) pv_strlcat(state->control.default_format, " ", sizeof(state->control.default_format)); \
+		(void) pv_strlcat(state->control.default_format, y, sizeof(state->control.default_format)); \
+	}
+
+	state->control.format_option.progress = format.progress;
+	state->control.format_option.timer = format.timer;
+	state->control.format_option.eta = format.eta;
+	state->control.format_option.fineta = format.fineta;
+	state->control.format_option.rate = format.rate;
+	state->control.format_option.average_rate = format.average_rate;
+	state->control.format_option.bytes = format.bytes;
+	state->control.format_option.bufpercent = format.bufpercent;
+	state->control.format_option.lastwritten = format.lastwritten;
+
+	state->control.default_format[0] = '\0';
+
+	if (false == state->control.numeric) {
+		/* Standard progress display mode (without "--numeric"). */
+
+		/*
+		 * Add the format strings for the enabled options in a
+		 * standard order.
+		 */
+		PV_ADDFORMAT(NULL != state->control.name, "%N");
+		PV_ADDFORMAT(format.bytes, "%b");
+		PV_ADDFORMAT(format.bufpercent, "%T");
+		PV_ADDFORMAT(format.timer, "%t");
+		PV_ADDFORMAT(format.rate, "%r");
+		PV_ADDFORMAT(format.average_rate, "%a");
+		PV_ADDFORMAT(format.progress, "%p");
+		PV_ADDFORMAT(format.eta, "%e");
+		PV_ADDFORMAT(format.fineta, "%I");
+
+		if (format.lastwritten > 0) {
+			char buf[16];	 /* flawfinder: ignore */
+			memset(buf, 0, sizeof(buf));
+			(void) pv_snprintf(buf, sizeof(buf), "%%%uA", (unsigned int) format.lastwritten);
+			PV_ADDFORMAT(format.lastwritten > 0, buf);
+			/*
+			 * flawfinder rationale: large enough for string,
+			 * zeroed before use, only written to by
+			 * pv_snprintf() with the right buffer length.
+			 */
+		}
+
+	} else {
+		/* Numeric mode has different behaviour. */
+
+		PV_ADDFORMAT(format.timer, "%t");
+		PV_ADDFORMAT(format.bytes, "%b");
+		PV_ADDFORMAT(format.rate, "%r");
+		PV_ADDFORMAT(!(format.bytes || format.rate), "%{progress-amount-only}");
+
+	}
+
+	debug("%s: [%s]", "default format set", state->control.default_format);
+
+	/* Tell pv_format() that the format has changed. */
+	state->flags.reparse_display = 1;
+}
+
+
+/*
+ * Append a string to the default format, and trigger a format reparse.
+ */
+void pv_state_append_to_default_format(pvstate_t state, /*@null@ */ const char *val)
+{
+	PV_ADDFORMAT(NULL != val, val);
+	state->flags.reparse_display = 1;
+}
+
+
+/*
+ * Simple setter functions.
+ */
+
+
+void pv_state_force_set(pvstate_t state, bool val)
+{
+	state->control.force = val;
+}
+
+void pv_state_cursor_set(pvstate_t state, bool val)
+{
+	state->control.cursor = val;
+}
+
+void pv_state_use_osc94_set(pvstate_t state, bool val)
+{
+	state->control.use_osc94 = val;
+}
+
+void pv_state_show_stats_set(pvstate_t state, bool val)
+{
+	state->control.show_stats = val;
+}
+
+void pv_state_numeric_set(pvstate_t state, bool val)
+{
+	state->control.numeric = val;
+}
+
+void pv_state_wait_set(pvstate_t state, bool val)
+{
+	state->control.wait = val;
+}
+
+void pv_state_delay_start_set(pvstate_t state, double val)
+{
+	state->control.delay_start = val;
+}
+
+void pv_state_rate_gauge_set(pvstate_t state, bool val)
+{
+	state->control.rate_gauge = val;
+}
+
+void pv_state_linemode_set(pvstate_t state, bool val)
+{
+	state->control.linemode = val;
+}
+
+void pv_state_bits_set(pvstate_t state, bool bits)
+{
+	state->control.bits = bits;
+}
+
+void pv_state_decimal_units_set(pvstate_t state, bool decimal_units)
+{
+	state->control.decimal_units = decimal_units;
+}
+
+void pv_state_null_terminated_lines_set(pvstate_t state, bool val)
+{
+	state->control.null_terminated_lines = val;
+}
+
+void pv_state_no_display_set(pvstate_t state, bool val)
+{
+	state->control.no_display = val;
+}
+
+void pv_state_skip_errors_set(pvstate_t state, unsigned int val)
+{
+	state->control.skip_errors = val;
+}
+
+void pv_state_error_skip_block_set(pvstate_t state, off_t val)
+{
+	state->control.error_skip_block = val;
+}
+
+void pv_state_stop_at_size_set(pvstate_t state, bool val)
+{
+	state->control.stop_at_size = val;
+}
+
+void pv_state_sync_after_write_set(pvstate_t state, bool val)
+{
+	state->control.sync_after_write = val;
+}
+
+void pv_state_direct_io_set(pvstate_t state, bool val)
+{
+	state->control.direct_io = val;
+	/* Tell pv_transfer() to take action when this value changes. */
+	state->control.direct_io_changed = true;
+}
+
+void pv_state_sparse_output_set(pvstate_t state, bool val)
+{
+	state->control.sparse_output = val;
+}
+
+void pv_state_discard_input_set(pvstate_t state, bool val)
+{
+	state->control.discard_input = val;
+}
+
+/*
+ * If "was_specified" is true, the limit was specified on the command line.
+ * This is used with --remote to determine whether to affect the remote
+ * process's rate limit settings.
+ *
+ * if "is_active" is true, the limit ("val") is not zero so rate limiting is
+ * active.
+ */
+void pv_state_rate_limit_set(pvstate_t state, long double val, bool was_specified, bool is_active)
+{
+	state->control.rate_limit = val;
+	state->control.rate_limit_specified = was_specified;
+	state->control.rate_limit_active = is_active;
+}
+
+void pv_state_target_buffer_size_set(pvstate_t state, size_t val)
+{
+	state->control.target_buffer_size = val;
+}
+
+void pv_state_no_splice_set(pvstate_t state, bool val)
+{
+	state->control.no_splice = val;
+}
+
+void pv_state_pipe_buffer_size_set(pvstate_t state, size_t val)
+{
+	state->control.pipe_buffer_size = val;
+}
+
+void pv_state_size_set(pvstate_t state, off_t val)
+{
+	state->control.size = val;
+}
+
+void pv_state_interval_set(pvstate_t state, double val)
+{
+	state->control.interval = val;
+}
+
+void pv_state_width_set(pvstate_t state, unsigned int val, bool was_set_manually)
+{
+	if (val > PVDISPLAY_WIDTH_MAX)
+		val = PVDISPLAY_WIDTH_MAX;
+	state->control.width = (pvdisplay_width_t) val;
+	state->control.width_set_manually = was_set_manually;
+}
+
+void pv_state_height_set(pvstate_t state, unsigned int val, bool was_set_manually)
+{
+	state->control.height = val;
+	state->control.height_set_manually = was_set_manually;
+}
+
+void pv_state_name_set(pvstate_t state, /*@null@ */ const char *val)
+{
+	if (NULL != state->control.name) {
+		free(state->control.name);
+		state->control.name = NULL;
+	}
+	if (NULL != val)
+		state->control.name = pv_strdup(val);
+}
+
+void pv_state_default_bar_style_set(pvstate_t state, /*@null@ */ const char *val)
+{
+	if (NULL != state->control.default_bar_style) {
+		free(state->control.default_bar_style);
+		state->control.default_bar_style = NULL;
+	}
+	if (NULL != val)
+		state->control.default_bar_style = pv_strdup(val);
+}
+
+void pv_state_format_string_set(pvstate_t state, /*@null@ */ const char *val)
+{
+	if (NULL != state->control.format_string) {
+		free(state->control.format_string);
+		state->control.format_string = NULL;
+	}
+	if (NULL != val)
+		state->control.format_string = pv_strdup(val);
+}
+
+void pv_state_extra_display_set(pvstate_t state, /*@null@ */ const char *val)
+{
+	const char *word_start;
+
+	if (NULL != state->control.extra_display_spec) {
+		free(state->control.extra_display_spec);
+		state->control.extra_display_spec = NULL;
+	}
+
+	if (NULL != state->control.extra_format_string) {
+		free(state->control.extra_format_string);
+		state->control.extra_format_string = NULL;
+	}
+
+	state->control.extra_displays = 0;
+	if (NULL == val)
+		return;
+
+	if (NULL != val)
+		state->control.extra_display_spec = pv_strdup(val);
+
+	word_start = val;
+	while (NULL != word_start && '\0' != word_start[0]) {
+		size_t offset;
+
+		offset = 0;
+		while ('\0' != word_start[offset] && ',' != word_start[offset] && ':' != word_start[offset])
+			offset++;
+		if (((11 == offset) && (0 == strncmp(word_start, "windowtitle", 11)))
+		    || ((6 == offset) && (0 == strncmp(word_start, "window", 6)))
+		    ) {
+			debug("%s", "enabling windowtitle");
+			state->control.extra_displays |= PV_DISPLAY_WINDOWTITLE;
+		} else if (((12 == offset) && (0 == strncmp(word_start, "processtitle", 12)))
+			   || ((9 == offset) && (0 == strncmp(word_start, "proctitle", 9)))
+			   || ((7 == offset) && (0 == strncmp(word_start, "process", 7)))
+			   || ((4 == offset) && (0 == strncmp(word_start, "proc", 4)))
+		    ) {
+			debug("%s", "enabling processtitle");
+			state->control.extra_displays |= PV_DISPLAY_PROCESSTITLE;
+		}
+		switch (word_start[offset]) {
+		case ',':
+			offset++;
+			break;
+		case ':':
+			offset++;
+			debug("%s: [%s]", "setting extra_format_string", word_start + offset);
+			state->control.extra_format_string = pv_strdup(word_start + offset);
+			word_start = NULL;
+			break;
+		default:
+			word_start = NULL;
+			break;
+		}
+		if (NULL != word_start)
+			word_start += offset;
+	}
+}
+
+void pv_state_output_set(pvstate_t state, int fd, const char *name)
+{
+	/*
+	 * Close any previous output file first, before the old output
+	 * filename is replaced, so any associated error can be reported
+	 * with the right filename.
+	 */
+	pv_truncate_output(state);
+	if (state->control.output_fd >= 0 && state->control.output_fd != STDOUT_FILENO) {
+		if (close(state->control.output_fd) < 0) {
+			pv_perror("%s", NULL == state->control.output_name ? "(null)" : state->control.output_name);
+		}
+	}
+	if (NULL != state->control.output_name)
+		free(state->control.output_name);
+	state->control.output_fd = fd;
+	state->control.output_name = pv_strdup(name);
+#ifdef MAKE_OUTPUT_NONBLOCKING
+	/*
+	 * Try and make the output use non-blocking I/O.
+	 *
+	 * This can cause problems with some, but not all, applications -
+	 * such as dd - when used in a pipeline.
+	 */
+	fcntl(state->control.output_fd, F_SETFL, O_NONBLOCK | fcntl(state->control.output_fd, F_GETFL));
+#endif				/* MAKE_OUTPUT_NONBLOCKING */
+
+	/*
+	 * In sparse output mode, if the output is in append mode (>>),
+	 * explicitly lseek() to the end of the file.  Otherwise, the file
+	 * offset is not set until the first write(), which means that if
+	 * the input starts with null bytes, upon lseek()ing past them
+	 * relative to the current position, the "current position" is 0
+	 * rather than the end of the file, and the file gets truncated on
+	 * exit to the wrong size.
+	 */
+	if (state->control.sparse_output && 0 != (fcntl(fd, F_GETFL) & O_APPEND)) {
+		debug("%s", "sparse output mode, and appending - seeking output to the end");
+		if ((off_t) lseek(fd, 0, SEEK_END) == (off_t) - 1) {
+			debug("%s: %s", "lseek failed", strerror(errno));
+		}
+	}
+}
+
+void pv_state_average_rate_window_set(pvstate_t state, unsigned int val)
+{
+	if (val < 1)
+		val = 1;
+	state->control.average_rate_window = val;
+	state->control.history_interval = pv_update_calc_average_rate_window(&(state->calc), val);
+}
+
+void pv_state_set_terminal_supports_utf8(pvstate_t state, bool val)
+{
+	state->status.terminal_supports_utf8 = val;
+}
+
+void pv_state_othermonitor_set(pvstate_t state, pid_t pid, int read_fd, int write_fd)
+{
+	state->control.othermonitor_pid = pid;
+	state->control.othermonitor_read_fd = read_fd;
+	state->control.othermonitor_write_fd = write_fd;
+}
+
+/* If the format string is set to an empty string, stop all display output. */
+void pv_state_cancel_output_if_empty_format_string(pvstate_t state)
+{
+	if (NULL == state->control.format_string)
+		return;
+	if ('\0' != state->control.format_string[0])
+		return;
+	debug("%s", "empty format string - setting no_display and turning off cursor positioning");
+	state->control.no_display = true;
+	state->control.cursor = false;
+}
+
+/*
+ * Set the array of input files.
+ */
+void pv_state_inputfiles(pvstate_t state, unsigned int input_file_count, const char **input_files)
+{
+	unsigned int file_idx;
+	/*@only@ */ nullable_only_string_t *new_array;
+
+	/* Free the old array and its contents, if there was one. */
+	if (NULL != state->files.filename) {
+		for (file_idx = 0; file_idx < state->files.file_count; file_idx++) {
+			free(state->files.filename[file_idx]);
+		}
+		free(state->files.filename);
+		state->files.filename = NULL;
+		state->files.file_count = 0;
+	}
+
+	/* Allocate an empty new array of the right size. */
+	new_array = calloc((size_t) (input_file_count + 1), sizeof(char *));
+	if (NULL == new_array) {
+		/*@-mustfreefresh@ *//* see similar _() issue above */
+		pv_perror("%s", _("memory allocation failure"));
+		/*@+mustfreefresh@ */
+		return;
+	}
+	state->files.filename = new_array;
+
+	/* Populate the new array with copies of the filenames. */
+	for (file_idx = 0; file_idx < input_file_count; file_idx++) {
+		/*@only@ */ char *new_string;
+		new_string = pv_strdup(input_files[file_idx]);
+		if (NULL == new_string) {
+			/*@-mustfreefresh@ *//* see similar _() issue above */
+			pv_perror("%s", _("memory allocation failure"));
+			/*@+mustfreefresh@ */
+			return;
+		}
+		state->files.filename[file_idx] = new_string;
+	}
+	state->files.file_count = input_file_count;
+}
+
+/*
+ * Set the arrays of watchfd process IDs and file descriptors.
+ */
+void pv_state_watchfds(pvstate_t state, unsigned int watchfd_count, const pid_t *pids, const int *fds)
+{
+	unsigned int item_idx;
+	/*@only@ */ struct pvwatcheditem_s *new_array = NULL;
+
+	/* Free the old arrays, if there were any. */
+	if (NULL != state->watchfd.watching) {
+		/*@-compdestroy@ */
+		pv_freecontents_watchfd_items(state->watchfd.watching, state->watchfd.count);
+		free(state->watchfd.watching);
+		state->watchfd.watching = NULL;
+		/*@+compdestroy@ */
+		/*
+		 * splint warns about deep structures not being deallocated,
+		 * but that's what pv_freecontents_watchfd_items() does.
+		 */
+	}
+	state->watchfd.count = 0;
+	state->watchfd.multiple_pids = false;
+
+	/* Allocate an empty new array of the right size. */
+	new_array = malloc((1 + watchfd_count) * sizeof(*new_array));
+	if (NULL == new_array) {
+		/*@-mustfreefresh@ *//* see similar _() issue above */
+		pv_perror("%s", _("memory allocation failure"));
+		/*@+mustfreefresh@ */
+		return;
+	}
+	memset(new_array, 0, (1 + watchfd_count) * sizeof(*new_array));
+	state->watchfd.watching = new_array;
+
+	/* Populate the new array with the values supplied. */
+	for (item_idx = 0; item_idx < watchfd_count; item_idx++) {
+		state->watchfd.watching[item_idx].pid = pids[item_idx];
+		state->watchfd.watching[item_idx].fd = fds[item_idx];
+		if ((item_idx > 0) && (pids[item_idx] != pids[item_idx - 1]))
+			state->watchfd.multiple_pids = true;
+	}
+	state->watchfd.count = watchfd_count;
+
+	debug("%s=%d, %s=%s", "watchfd.count", state->watchfd.count, "multiple_pids",
+	      state->watchfd.multiple_pids ? "true" : "false");
+}

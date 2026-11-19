@@ -1,0 +1,20 @@
+# Build environment for TacoLinux's static CLI tools.
+# Everything is compiled against musl and linked with -static, so the resulting
+# binaries run on TacoLinux regardless of its Nix/glibc layout.
+FROM alpine:3.24
+
+RUN apk add --no-progress --no-cache \
+  bash build-base linux-headers \
+  autoconf automake libtool pkgconf gettext-dev bison flex texinfo \
+  ncurses-dev ncurses-static \
+  zlib-dev zlib-static \
+  openssl-dev openssl-libs-static \
+  libevent-dev libevent-static \
+  libpcap-dev \
+  pcre2-dev pcre2-static \
+  oniguruma-dev \
+  readline-dev readline-static \
+  elfutils-dev libcap-dev bsd-compat-headers lz4-dev \
+  libbsd-dev libbsd-static gettext-static groff
+
+WORKDIR /work

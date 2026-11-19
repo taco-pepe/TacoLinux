@@ -1,0 +1,372 @@
+#! /usr/bin/python
+
+#codata-check: compare the CODATA values from
+#  https://physics.nist.gov/cuu/Constants/Table/allascii.txt
+#against the values in GNU units.
+
+
+import argparse, subprocess, sys
+from decimal import Decimal
+from functools import reduce
+import re
+
+VERSION = '1.9'  #script version
+
+# Python-3.8 is required because f-strings and "assignment expressions" are used.
+# Beware: I've only actually tested against 3.12 though, so there
+# may be something else that breaks with intermediate versions...
+REQUIRED = (3,8) #python version requirement
+
+def debug_print(*msg):
+    if args.debug:
+        print(*msg)
+
+def warn(*msg):
+    print(*msg, file=sys.stderr)
+
+def die(*msg):
+    warn(*msg)
+    sys.exit(1)
+
+def try_open(file):
+    try:
+        return open(file, encoding="utf-8")
+    except Exception as e:
+        die(f"could not open {file}: {e}")
+
+if sys.version_info < REQUIRED:
+    die(f"require a Python interpreter version {REQUIRED} or greater")
+
+# handle formatting for describing "star-special" fields
+def star_format(tag, left_expr, equality, right_expr):
+    if right_expr.startswith('*'):
+        return f"{tag}: [*] {left_expr} {equality} {right_expr[1:].strip()}"
+    return None
+
+# check if the codata and gnu values match; allow for floating point rounding issues
+# if the value is computed as an expression with more than one token
+def check_fuzzy_equal(codata_name, codata_value, codata_unit, gnu_expr, gnu_value, fuzz):
+    is_derived = re.search(r"\W", gnu_expr)
+    if is_derived and not args.verbose:
+        # debug_print(f"ignoring derived value: {gnu_expr}  ({codata_name})")
+        return
+    codata_value = codata_value.replace(" ", "").replace("...", "") #clean-up
+    gnu_value = gnu_value.strip()
+    gnu_expr = gnu_expr.strip()
+    vcodata = Decimal(codata_value).normalize()
+    vgnu = Decimal(gnu_value).normalize()
+    display_unit = "" if codata_unit == "1" else " "+codata_unit
+    if vcodata == vgnu:
+        if star_text := star_format("good", gnu_expr, "=", codata_name):
+            debug_print(star_text)
+        else:
+            debug_print(f"good: {gnu_expr} = {codata_value}{display_unit} = {codata_name}")
+        return
+    if is_derived:
+        # we are considering a derived value (not a primary value)
+        # make allowances for rounding errors in the computation(s) by allowing
+        # vgnu to vary from vcodata by up to "fuzz" decimal-ULPs of vcodata
+        vgnu = vgnu.quantize(vcodata) #round vgnu to match (decimal) sig-figs of vcodata
+        (_, digits_c, _) = vcodata.as_tuple()
+        (_, digits_g, _) = vgnu.as_tuple()
+        fn = lambda a,b: a*10 + b
+        if abs(reduce(fn, digits_c, 0) - reduce(fn, digits_g, 0)) <= fuzz:
+            if star_text := star_format("fuzzy-good", gnu_expr, "=", codata_name):
+                debug_print(star_text)
+            else:
+                debug_print(f"fuzzy-good: {gnu_expr} = {vgnu} ~ {codata_value}{display_unit} = {codata_name}")
+            return
+        print("derived value ", end="")
+    if star_text := star_format("mismatch", gnu_expr, "!=", codata_name):
+        print(star_text)
+    else:
+        print(f"mismatch: {gnu_expr} = {vgnu} != {codata_value}{display_unit} = {codata_name}")
+
+
+def skip_header(f):
+    while line := f.readline():
+        if line.startswith("-----"):
+            break
+
+
+# parse a line into a sequence of fields, each separated by at least two spaces
+def parse_fields(line, nfields):
+    result = []
+    while line and len(result) < nfields:
+        spaces = line.find("  ")
+        if spaces < 0:
+            result.append(line)
+            break
+        result.append(line[:spaces])
+        line = line[spaces:].lstrip()
+    while len(result) < nfields:
+        result.append(None)
+    return result
+
+
+# parse the mappings from the CODATA.map file
+def get_mapping(map_file):
+    mapping = dict()
+    special = []
+    with try_open(map_file) as mapfile:
+        skip_header(mapfile)
+        for line in mapfile.readlines():
+            t = line.lstrip()
+            if t == "" or t.startswith("#"):
+                continue #ignore blank and comment lines
+            (gnu_expr, quantity) = parse_fields(line.rstrip(), 2)
+            mapping[quantity] = gnu_expr
+            if quantity.startswith("*"):
+                special.append(quantity)
+    return mapping, special
+
+
+# verify that all "primary" values are defined in a definitions file
+def validate_targets(unit_map, *definition_files):
+    unit_keys = dict()
+    # gather all of the defined unit names
+    first_word = re.compile(r'^\s*\+*\s*(\w+)\s')
+    for file in definition_files:
+        if not file:
+            continue
+        with try_open(file) as f:
+            for line in f:
+                if match:= re.search(first_word, line):
+                    unit_keys[match.group(1)] = True
+    # ensure that all "primary" values in the map have a defintion match
+    problems = 0
+    for expr in unit_map.values():
+        if not re.search(r'\A[A-Za-z_]\w*\Z', expr):
+            continue
+        if not unit_keys.get(expr):
+            problems += 1
+            warn(f"undefined: {expr} is not found in unit definition file(s)")
+        if problems > 10:
+            sys.exit(2)
+    if problems > 0:
+        sys.exit(1)
+
+
+
+# process NIST's allascii.txt CODTA file, comparing against the output from GNU units
+def process_codata(codata_file, unit_map, specials, units_definitions, supplement_file, fuzz):
+    # phase 1: slurp the CODATA file into a data structure, and prepare input to "units"
+    units_stdin = []
+    entries = []
+    for expr1 in specials:
+        expr2 = unit_map[expr1]
+        entries.append( (expr1, "1", expr2, "1") )
+        expr1 = expr1[1:].lstrip() #remove the leading "*" marker
+        units_stdin.append(expr1) # request "have" expression
+        units_stdin.append(expr2) # target "want" unit
+    with try_open(codata_file) as data:
+        skip_header(data)
+        for line in data.readlines():
+            if line.lstrip() == "":
+                continue #ignore blank lines
+            (codata_quantity, codata_value, codata_uncertainty, unit) = parse_fields(line.rstrip(), 4)
+            if not unit:
+                unit = "1"
+            if gnu_expr := unit_map.get(codata_quantity, ""):
+                if gnu_expr == "?":
+                    #marked as "don't know how to map", so ignore this line
+                    if args.verbose:
+                        debug_print(f"not evaluating '{codata_quantity}'")
+                    continue
+                entries.append( (codata_quantity, codata_value, gnu_expr, unit) )
+                units_stdin.append(gnu_expr) # request "have" expression
+                units_stdin.append(unit) # target "want" unit
+            else:
+                warn(f"ignoring unhandled CODATA quantity: {codata_quantity}")
+
+    # phase 2: invoke "units" to convert values
+    cmd = ['units', '-1', '-d', 'max', '-f', units_definitions]
+    if supplement_file:
+        cmd.extend(['-f', supplement_file])
+    units_stdin = "\n".join(units_stdin).encode()
+    r = subprocess.run(cmd, input=units_stdin, capture_output=True, timeout=8)
+    if r.stderr:
+        #this error message isn't going to be very helpful; it will lack
+        #context about what line of input is causing problems...
+        die(f"Error running {cmd}: {r.stderr.rstrip()}")
+
+    #phase 3: process "units" output
+    try:
+        lines = iter(r.stdout.decode().split(sep="\n"))
+        while line := lines.__next__().strip():
+            if line == "":
+                break
+        for (codata_quantity, codata_value, gnu_expr, unit) in entries:
+            if not (line := lines.__next__().strip()):
+                die("units stdout ended while still having CODATA to process")
+            star = line.find("*")
+            if star < 0:
+                die(f"got unexpected response from GNU units for {gnu_expr} -> {unit}: {line}")
+            check_fuzzy_equal(codata_quantity, codata_value, unit, gnu_expr, line[star+1:], fuzz)
+    except StopIteration:
+        pass
+
+
+usage_suggestion = '''
+            Comparing units(1) and CODATA Constants
+            =======================================
+
+   This codata-check script compares a file containing CODATA constants
+   against values reported by units(1).  Here is a suggested work-flow.
+
+1.  It is recommended to work in a fresh directory, installing
+    the files below into it.
+
+2.  Obtain the necessary files:
+     * Make a copy of the  units data file, usually the definitions.units
+       file that was installed as part of GNU units (or extracted from
+       a tarball of same).
+     * Copy (or symlink) all of the files !include'd from the definitions.units
+       file into the working directory. You can get a quick list of the
+       required files with:
+            grep '!include' definitions.units
+     * A file with the latest CODATA constants.  It is possible that
+       the location may change at some time in the future, but for many
+       years now it has been available from:
+           https://physics.nist.gov/cuu/Constants/Table/allascii.txt
+     * The file mapping units names to corresponding CODATA values,
+       by default, "CODATA.map".
+
+    At the time of writing this help, there is a discrepancy between how
+    GNU units defines natural_energy and how CODATA defines natural energy.
+    As a work-around, create a supplementary file which forces the CODATA
+    definition:
+       echo '+natural_energy  m_e c^2' >natural_energy
+
+3.  Make the initial comparison using the local working copy of the
+    units data file:
+        python codata-check -u natural_energy -v >/dev/null
+    (For this phase we don't care about normal output, thus the
+    redirection to the bit-bucket.)
+
+    For the input files to be well-formed, every "GNU expression"
+    in the map file must be well-defined in the units data file,
+    and every quantity listed in the NIST CODATA file must have
+    an entry in the map file.  Warnings will be written to stderr
+    if these constraints are violated (*), and so they will show
+    up with the above >/dev/null redirection.  These problems need
+    to be cleaned up first.  After making appropriate corrections,
+    repeat this step until no warnings are given.
+
+    (*) Technically, only simple one-token expressions are checked
+    at this stage.  In principle it is possible for other expressions
+    to have problems; any such will be detected (perhaps with a less
+    helpful error message) in a later step.  (The checking at this
+    stage is purely textual; later stages invoke GNU units to actually
+    evaluate the full expressions.)
+
+4.  Once the three files are in sync with respect to the tracked
+    quantities and units, check for data value discrepancies:
+        python codata-check -u natural_energy -v | grep -v ^derived value'
+
+    Any problems will be reported as a "mismatch", with enough details
+    to know what units need fixing in the local working copy, and
+    what the correct values should be.  Make any necessary updates
+    and repeat the comparison until there is no output.
+
+    If the output is too quiet and you want reassurance that something is
+    actually happening, run codata-check with the '-d' (debug) option, e.g.:
+        python codata-check -u natural_energy -d
+
+    In this case, every "non-derived" unit (in a sense documented in the
+    CODATA.map file) should have a disposition reported (either "good"
+    or "mismatch").
+
+5.  As an final check, confirm that *all* values in the CODATA
+    file match what GNU units reports by running codata-check
+    without any filters:
+        python codata-check -u natural_energy -v
+
+    In addition to the checks performed in step 4, any "derived" values
+    that differ from the CODATA values will also be reported.  If the
+    earlier run in step 4 was silent, then this run ought to be
+    silent also; if not, there is a bug somewhere (the definitions.unit
+    file, the CODATA.map file, the allascii.txt file, or possibly
+    even the codata-check script).  It may take some detective work
+    to resolve any errors which show up only in verbose mode, but
+    ideally this will be a rare occurrence.
+
+6a. Ensure that the version identifier and the last-updated and copyright
+    dates in definitions.units are all updated.
+
+6b. Clean-up any tabs and/or any trailing spaces which might have
+    been introduced:
+       expand definitions.units > tmp$$
+       sed 's/ *$//' tmp$$ > definitions.units
+       rm tmp$$
+'''
+
+help_epilog = '''
+  Where:
+
+    codata-file  (default: allascii.txt)
+      is a local copy of the NIST allascii.txt file
+        https://physics.nist.gov/cuu/Constants/Table/allascii.txt
+
+    map-file  (default: CODATA.map)
+      consists of mappings between GNU unit expressions and CODATA Quantity
+      names; the two fields are separated by two or more spaces
+
+    units-definitions  (default: use system-default definitions.units)
+      use the specified file in place of the system's default definition.units
+      file (passed as a "-f" argument to GNU units)
+
+    units-supplement  (default: do not use a supplemental file)
+      consists of any local updates to the normal GNU units definitions.units
+      file; this is particularly helpful for testing whether proposed changes
+      fix things as desired (passed as a "-f" argument to GNU units)
+
+    fuzz  (default: 2)
+      is an integer specifying how much fuzziness is allowed when
+      comparing derived quantities (to account for rounding errors).
+      It specifies how many "units in the last position" ("ULPs")
+      are tolerated; for example, a fuzziness of 2 allows 3.1415
+      to match 3.1417, but not 3.1418.  This comparison is done
+      after rounding the computed GNU unit value to have the same
+      precision as the provided NIST CODATA value.
+
+    verbose  (default: not verbose)
+        show issues with "derived" quantities (in addition to,
+        not instead of, the printing of issues with "primary" values)
+
+    debug  (default: not debug)
+        include debugging diagnostics
+
+  For a suggested work-flow, use the "--usage" flag.
+'''
+
+parser = argparse.ArgumentParser(
+            prog = "codata-check",
+            description = "check GNU units against CODATA values downloaded from NIST",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog = help_epilog
+        )
+parser.add_argument('-c', '--codata-file', default='allascii.txt')
+parser.add_argument('-m', '--map-file', default='CODATA.map')
+parser.add_argument('-U', '--units-definitions', default='')
+parser.add_argument('-u', '--units-supplement', default=None)
+parser.add_argument('-f', '--fuzz', type=int, default=2)
+parser.add_argument('-v', '--verbose', action='store_true')
+parser.add_argument('-d', '--debug', action='store_true')
+parser.add_argument('-V', '--version', action='store_true')
+parser.add_argument('--usage', action='store_true')
+args = parser.parse_args()
+
+if args.version:
+    print(f"{sys.argv[0]} version {VERSION}")
+    sys.exit(0)
+if args.usage:
+    print(usage_suggestion)
+    sys.exit(0)
+
+(unit_map, specials) = get_mapping(args.map_file)
+if args.units_definitions:
+    validate_targets(unit_map, args.units_definitions, args.units_supplement)
+elif args.units_supplement:
+    try_open(args.units_supplement).close() # we just want the error-checking
+process_codata(args.codata_file, unit_map, specials, args.units_definitions, args.units_supplement, args.fuzz)

@@ -1,0 +1,433 @@
+CODATA.map version 1.9
+
+This file establishes a mapping between physical quantities
+as expressed in two different worlds:
+   * GNU units expressions, based on entries in its definitions.units file
+   * CODATA data from  https://physics.nist.gov/cuu/Constants/Table/allascii.txt
+
+This is used by the codata-check script to facilitate the comparison
+of corresponding values between GNU units and CODATA.
+
+Format:
+  * An initial header, before the line of dashes, is commentary,
+    ignored by the codata-check script.
+  * Blank lines, and lines whose first non-blank character is '#', are ignored
+    (and hence are good for adding comments).
+  * There are two fields: the GNU expression and the CODATA quantity name;
+    these fields are separated by the leftmost sequence of two or more spaces.
+  * As a special exception, if the CODATA quantity name starts with a "*",
+    the rest of the name is actually interpreted as a second GNU expression;
+    the two exprssions will be checked for equivalence with each other.
+
+GNU units expression for quantity                               Name of quantity in NIST's CODATA file
+----------------------------------------------------------------------------------------------------------------------------
+
+# primary values -
+#  ones whose values need to be tracked between
+#  GNU units and CODATA
+#
+alpha                                                           fine-structure constant
+alphachargeradius                                               alpha particle rms charge radius
+alphaparticlemass                                               alpha particle mass in u
+angstromstar                                                    Angstrom star
+atomicmassunit                                                  atomic mass constant
+deuteronchargeradius                                            deuteron rms charge radius
+deuteronmass                                                    deuteron mass in u
+electronmass                                                    electron mass in u
+electronmass_u                                                  electron relative atomic mass
+fermicoupling                                                   Fermi coupling constant
+G                                                               Newtonian constant of gravitation
+g_d                                                             deuteron g factor
+g_e                                                             electron g factor
+g_h                                                             helion g factor
+g_mu                                                            muon g factor
+g_n                                                             neutron g factor
+g_p                                                             proton g factor
+g_t                                                             triton g factor
+hartree                                                         Hartree energy
+helionmass                                                      helion mass in u
+muonmass                                                        muon mass in u
+neutronmass                                                     neutron mass in u
+protonchargeradius                                              proton rms charge radius
+protonmass                                                      proton mass in u
+silicon_d220                                                    lattice spacing of ideal Si (220)
+taumass                                                         tau mass in u
+tritonmass                                                      triton mass in u
+xunit_cu                                                        Copper x unit
+xunit_mo                                                        Molybdenum x unit
+
+# these GNU names are provisional
+shielded_mu_h                                                   shielded helion mag. mom.
+shielded_mu_p                                                   shielded proton mag. mom.
+weakmixingangle                                                 weak mixing angle
+w_to_z_mass_ratio                                               W to Z mass ratio
+
+# The *_SI pseudo-units are the numeric coefficient part of the named
+# unit (i.e., the underlying quantity with the SI units stripped off).
+# This is done to facilitate the support of non-SI unit systems within
+# GNU units.  All such units should be listed here, as a sanity check.
+atomicmassunit_SI                                               * atomicmassunit / (kg)
+c_SI                                                            * c / (m / s)
+e_SI                                                            * e / (C)
+electronmass_SI                                                 * electronmass / (kg)
+epsilon0_SI                                                     * epsilon0 / (F / m)
+G_SI                                                            * G / (N m^2 / kg^2)
+h_SI                                                            * h / (J / Hz)
+hbar_SI                                                         * hbar / (J s)
+k_SI                                                            * k / (J / K)
+k_C_SI                                                          * k_C / (N m^2 / C^2)
+mu0_SI                                                          * mu0 / (N / A^2)
+
+# these seem too esoteric to add to GNU units
+?                                                               helion shielding shift
+?                                                               proton mag. shielding correction
+?                                                               shielding difference of d and p in HD
+?                                                               shielding difference of t and p in HT
+
+# Primary-ish values - ones which should be exact due to definition
+# chains, independent of CODATA updates.
+#
+#   consequences of BIPM SI 2019:
+atomiccharge                                                    atomic unit of charge
+avogadro                                                        Avogadro constant
+boltzmann                                                       Boltzmann constant
+c                                                               natural unit of velocity
+c                                                               speed of light in vacuum
+e                                                               elementary charge
+eV                                                              electron volt
+eV                                                              electron volt-joule relationship
+h                                                               Planck constant
+K_cd                                                            luminous efficacy
+nu_133Cs                                                        hyperfine transition frequency of Cs-133
+100kPa                                                          standard-state pressure
+#
+#   defined by various CGPM declarations:
+atm                                                             standard atmosphere
+gravity                                                         standard acceleration of gravity
+K_J90                                                           conventional value of Josephson constant
+R_K90                                                           conventional value of von Klitzing constant
+
+
+# derived values - for completeness
+#
+# The values for these *should* automatically be in alignment, once
+# the primary values are adjusted to match CODATA.  If all of the
+# primary values (above) match, then any remaining discrepancy here
+# needs to be explained.  ("It's just a rounding error" is likely
+# to be the ultimate explanation for most discrepancies, but don't
+# assume that going in.)
+#
+# Note: the odd looking stray "1" in some expressions is a mechanism
+# to inform codata-check that what otherwise looks like a simple value
+# is in fact a derived value (inside of definitons.units).
+
+# This first group consists of quantities which actually possess
+# "exact" precision, but the relevant coefficient cannot be expressed
+# with a finite decimal representation.  So we fudge and say these are
+# "derived" and hence subject to round-off errors.
+#
+atomicaction 1                                                  atomic unit of action
+boltzmann 1                                                     Boltzmann constant in eV/K
+k / h                                                           Boltzmann constant in Hz/K
+k / h c                                                         Boltzmann constant in inverse meter per kelvin
+conductancequantum 1                                            conductance quantum
+ampere90 1                                                      conventional value of ampere-90
+coulomb90 1                                                     conventional value of coulomb-90
+farad90 1                                                       conventional value of farad-90
+henry90 1                                                       conventional value of henry-90
+ohm90 1                                                         conventional value of ohm-90
+volt90 1                                                        conventional value of volt-90
+watt90 1                                                        conventional value of watt-90
+eV / h                                                          electron volt-hertz relationship
+eV / h c                                                        electron volt-inverse meter relationship
+eV / k                                                          electron volt-kelvin relationship
+eV / c2                                                         electron volt-kilogram relationship
+e / hbar                                                        elementary charge over h-bar
+faradayconst 1                                                  Faraday constant
+(2pi c)^2 hbar                                                  first radiation constant
+2 h c^2 / sr                                                    first radiation constant for spectral radiance
+Hz h                                                            hertz-electron volt relationship
+Hz / c                                                          hertz-inverse meter relationship
+Hz h                                                            hertz-joule relationship
+Hz h / k                                                        hertz-kelvin relationship
+Hz h / c2                                                       hertz-kilogram relationship
+(1/m) h c                                                       inverse meter-electron volt relationship
+(1/m) c                                                         inverse meter-hertz relationship
+(1/m) h c                                                       inverse meter-joule relationship
+(1/m) h c / k                                                   inverse meter-kelvin relationship
+(1/m) h / c                                                     inverse meter-kilogram relationship
+1 / conductancequantum                                          inverse of conductance quantum
+K_J 1                                                           Josephson constant
+J 1                                                             joule-electron volt relationship
+J / h                                                           joule-hertz relationship
+J / h c                                                         joule-inverse meter relationship
+J / k                                                           joule-kelvin relationship
+J / c2                                                          joule-kilogram relationship
+K k                                                             kelvin-electron volt relationship
+K k / h                                                         kelvin-hertz relationship
+K k / h c                                                       kelvin-inverse meter relationship
+K k                                                             kelvin-joule relationship
+K k / c2                                                        kelvin-kilogram relationship
+kg c2                                                           kilogram-electron volt relationship
+kg c2 / h                                                       kilogram-hertz relationship
+kg c2 / h c                                                     kilogram-inverse meter relationship
+kg c2                                                           kilogram-joule relationship
+kg c2 / k                                                       kilogram-kelvin relationship
+loschmidt 1                                                     Loschmidt constant (273.15 K, 101.325 kPa)
+loschmidt 100kPa/atm                                            Loschmidt constant (273.15 K, 100 kPa)
+magneticfluxquantum 1                                           mag. flux quantum
+gasconstant 1                                                   molar gas constant
+h N_A                                                           molar Planck constant
+molarvolume 1                                                   molar volume of ideal gas (273.15 K, 101.325 kPa)
+molarvolume atm/100kPa                                          molar volume of ideal gas (273.15 K, 100 kPa)
+natural_action 1                                                natural unit of action
+natural_action 1                                                natural unit of action in eV s
+h 1                                                             Planck constant in eV/Hz
+hbar 1                                                          reduced Planck constant
+hbar 1                                                          reduced Planck constant in eV s
+hbar c                                                          reduced Planck constant times c in MeV fm
+h c / k                                                         second radiation constant
+stefanboltzmann 1                                               Stefan-Boltzmann constant
+R_K 1                                                           von Klitzing constant
+wienfrequencydisplacement 1                                     Wien frequency displacement law constant
+wiendisplacement 1                                              Wien wavelength displacement law constant
+
+# The rest of these are expected to be subject to measurement errors
+#
+alphaparticlemass / electronmass                                alpha particle-electron mass ratio
+alphaparticlemass 1                                             alpha particle mass
+alphaparticlemass c2                                            alpha particle mass energy equivalent
+alphaparticlemass c2                                            alpha particle mass energy equivalent in MeV
+alphaparticlemass N_A                                           alpha particle molar mass
+alphaparticlemass / protonmass                                  alpha particle-proton mass ratio
+alphaparticlemass / u                                           alpha particle relative atomic mass
+u c2                                                            atomic mass constant energy equivalent
+u c2                                                            atomic mass constant energy equivalent in MeV
+u c2                                                            atomic mass unit-electron volt relationship
+u c2                                                            atomic mass unit-hartree relationship
+u c2 / h                                                        atomic mass unit-hertz relationship
+u c / h                                                         atomic mass unit-inverse meter relationship
+u c2                                                            atomic mass unit-joule relationship
+u c2 / k                                                        atomic mass unit-kelvin relationship
+u 1                                                             atomic mass unit-kilogram relationship
+atomiccharge / atomiclength^3                                   atomic unit of charge density
+atomiccurrent 1                                                 atomic unit of current
+atomicdipolemoment 1                                            atomic unit of electric dipole mom.
+atomicEfield 1                                                  atomic unit of electric field
+atomicEfield / atomiclength                                     atomic unit of electric field gradient
+atomicdipolemoment / atomicEfield                               atomic unit of electric polarizability
+atomicpotential 1                                               atomic unit of electric potential
+atomicdipolemoment atomiclength                                 atomic unit of electric quadrupole mom.
+atomicdipolemoment / atomicEfield^2                             atomic unit of 1st hyperpolarizability
+atomicdipolemoment / atomicEfield^3                             atomic unit of 2nd hyperpolarizability
+atomicenergy 1                                                  atomic unit of energy
+atomicforce 1                                                   atomic unit of force
+atomiclength 1                                                  atomic unit of length
+atomicenergy / atomicBfield                                     atomic unit of mag. dipole mom.
+atomicBfield 1                                                  atomic unit of mag. flux density
+atomicdipolemoment^2 / atomicmass                               atomic unit of magnetizability
+atomicmass 1                                                    atomic unit of mass
+atomicmomentum 1                                                atomic unit of momentum
+atomiccharge / atomicpotential atomiclength                     atomic unit of permittivity
+atomictime 1                                                    atomic unit of time
+atomicvelocity 1                                                atomic unit of velocity
+mu_B 1                                                          Bohr magneton
+mu_B 1                                                          Bohr magneton in eV/T
+mu_B / h                                                        Bohr magneton in Hz/T
+mu_B / h c                                                      Bohr magneton in inverse meter per tesla
+mu_B / k                                                        Bohr magneton in K/T
+bohrradius 1                                                    Bohr radius
+Z0 1                                                            characteristic impedance of vacuum
+electronradius 1                                                classical electron radius
+electronwavelength 1                                            Compton wavelength
+mu_d / mu_e                                                     deuteron-electron mag. mom. ratio
+m_d / m_e                                                       deuteron-electron mass ratio
+mu_d 1                                                          deuteron mag. mom.
+mu_d / mu_B                                                     deuteron mag. mom. to Bohr magneton ratio
+mu_d / mu_N                                                     deuteron mag. mom. to nuclear magneton ratio
+m_d 1                                                           deuteron mass
+m_d c2                                                          deuteron mass energy equivalent
+m_d c2                                                          deuteron mass energy equivalent in MeV
+m_d N_A                                                         deuteron molar mass
+mu_d / mu_n                                                     deuteron-neutron mag. mom. ratio
+mu_d / mu_p                                                     deuteron-proton mag. mom. ratio
+m_d / m_p                                                       deuteron-proton mass ratio
+m_d / u                                                         deuteron relative atomic mass
+-e / m_e                                                        electron charge to mass quotient
+mu_e / mu_d                                                     electron-deuteron mag. mom. ratio
+m_e / m_d                                                       electron-deuteron mass ratio
+-2 mu_e / hbar                                                  electron gyromag. ratio
+-2 mu_e / h                                                     electron gyromag. ratio in MHz/T
+m_e / m_h                                                       electron-helion mass ratio
+mu_e 1                                                          electron mag. mom.
+-g_e/2 - 1                                                      electron mag. mom. anomaly
+mu_e / mu_B                                                     electron mag. mom. to Bohr magneton ratio
+mu_e / mu_N                                                     electron mag. mom. to nuclear magneton ratio
+m_e 1                                                           electron mass
+m_e c2                                                          electron mass energy equivalent
+m_e c2                                                          electron mass energy equivalent in MeV
+m_e N_A                                                         electron molar mass
+mu_e / mu_mu                                                    electron-muon mag. mom. ratio
+m_e / m_mu                                                      electron-muon mass ratio
+mu_e / mu_n                                                     electron-neutron mag. mom. ratio
+m_e / m_n                                                       electron-neutron mass ratio
+mu_e / mu_p                                                     electron-proton mag. mom. ratio
+m_e / m_p                                                       electron-proton mass ratio
+m_e / m_tau                                                     electron-tau mass ratio
+eV / c2                                                         electron volt-atomic mass unit relationship
+m_e / m_alpha                                                   electron to alpha particle mass ratio
+mu_e / shielded_mu_h                                            electron to shielded helion mag. mom. ratio
+mu_e / shielded_mu_p                                            electron to shielded proton mag. mom. ratio
+m_e / m_t                                                       electron-triton mass ratio
+eV 1                                                            electron volt-hartree relationship
+E_h / c2                                                        hartree-atomic mass unit relationship
+E_h 1                                                           hartree-electron volt relationship
+E_h 1                                                           Hartree energy in eV
+E_h / h                                                         hartree-hertz relationship
+E_h / h c                                                       hartree-inverse meter relationship
+E_h 1                                                           hartree-joule relationship
+E_h / k                                                         hartree-kelvin relationship
+E_h / c2                                                        hartree-kilogram relationship
+m_h / m_e                                                       helion-electron mass ratio
+mu_h 1                                                          helion mag. mom.
+mu_h / mu_B                                                     helion mag. mom. to Bohr magneton ratio
+mu_h / mu_N                                                     helion mag. mom. to nuclear magneton ratio
+m_h 1                                                           helion mass
+m_h c2                                                          helion mass energy equivalent
+m_h c2                                                          helion mass energy equivalent in MeV
+m_h N_A                                                         helion molar mass
+m_h / m_p                                                       helion-proton mass ratio
+m_h / u                                                         helion relative atomic mass
+Hz h / c2                                                       hertz-atomic mass unit relationship
+Hz h                                                            hertz-hartree relationship
+1 / alpha                                                       inverse fine-structure constant
+(1/m) h / c                                                     inverse meter-atomic mass unit relationship
+(1/m) h c                                                       inverse meter-hartree relationship
+J / c2                                                          joule-atomic mass unit relationship
+J 1                                                             joule-hartree relationship
+K k / c2                                                        kelvin-atomic mass unit relationship
+K k                                                             kelvin-hartree relationship
+kg 1                                                            kilogram-atomic mass unit relationship
+kg c2                                                           kilogram-hartree relationship
+siliconlattice 1                                                lattice parameter of silicon
+molarmassconstant 1                                             molar mass constant
+12 molarmassconstant                                            molar mass of carbon-12
+molarvolume_si 1                                                molar volume of silicon
+muonwavelength 1                                                muon Compton wavelength
+m_mu / m_e                                                      muon-electron mass ratio
+mu_mu 1                                                         muon mag. mom.
+-g_mu/2 - 1                                                     muon mag. mom. anomaly
+mu_mu / mu_B                                                    muon mag. mom. to Bohr magneton ratio
+mu_mu / mu_N                                                    muon mag. mom. to nuclear magneton ratio
+m_mu 1                                                          muon mass
+m_mu c2                                                         muon mass energy equivalent
+m_mu c2                                                         muon mass energy equivalent in MeV
+m_mu N_A                                                        muon molar mass
+m_mu / m_n                                                      muon-neutron mass ratio
+mu_mu / mu_p                                                    muon-proton mag. mom. ratio
+m_mu / m_p                                                      muon-proton mass ratio
+m_mu / m_tau                                                    muon-tau mass ratio
+natural_energy 1                                                natural unit of energy
+natural_energy 1                                                natural unit of energy in MeV
+natural_length 1                                                natural unit of length
+natural_mass 1                                                  natural unit of mass
+natural_momentum 1                                              natural unit of momentum
+natural_momentum 1                                              natural unit of momentum in MeV/c
+natural_time 1                                                  natural unit of time
+neutronwavelength 1                                             neutron Compton wavelength
+mu_n / mu_e                                                     neutron-electron mag. mom. ratio
+m_n / m_e                                                       neutron-electron mass ratio
+-2 mu_n / hbar                                                  neutron gyromag. ratio
+-2 mu_n / h                                                     neutron gyromag. ratio in MHz/T
+mu_n 1                                                          neutron mag. mom.
+mu_n / mu_B                                                     neutron mag. mom. to Bohr magneton ratio
+mu_n / mu_N                                                     neutron mag. mom. to nuclear magneton ratio
+m_n 1                                                           neutron mass
+m_n c2                                                          neutron mass energy equivalent
+m_n c2                                                          neutron mass energy equivalent in MeV
+m_n N_A                                                         neutron molar mass
+m_n / m_mu                                                      neutron-muon mass ratio
+mu_n / mu_p                                                     neutron-proton mag. mom. ratio
+(m_n-m_p)                                                       neutron-proton mass difference
+(m_n-m_p) c2                                                    neutron-proton mass difference energy equivalent
+(m_n-m_p) c2                                                    neutron-proton mass difference energy equivalent in MeV
+(m_n-m_p)                                                       neutron-proton mass difference in u
+m_n / m_p                                                       neutron-proton mass ratio
+m_n / u                                                         neutron relative atomic mass
+m_n / m_tau                                                     neutron-tau mass ratio
+mu_n / shielded_mu_p                                            neutron to shielded proton mag. mom. ratio
+G / hbar c                                                      Newtonian constant of gravitation over h-bar c
+mu_N 1                                                          nuclear magneton
+mu_N 1                                                          nuclear magneton in eV/T
+mu_N / h c                                                      nuclear magneton in inverse meter per tesla
+mu_N / k                                                        nuclear magneton in K/T
+mu_N / h                                                        nuclear magneton in MHz/T
+plancklength 1                                                  Planck length
+planckmass 1                                                    Planck mass
+planckmass c2                                                   Planck mass energy equivalent in GeV
+plancktemperature 1                                             Planck temperature
+plancktime 1                                                    Planck time
+e / m_p                                                         proton charge to mass quotient
+protonwavelength 1                                              proton Compton wavelength
+m_p / m_e                                                       proton-electron mass ratio
+2 mu_p / hbar                                                   proton gyromag. ratio
+2 mu_p / h                                                      proton gyromag. ratio in MHz/T
+mu_p 1                                                          proton mag. mom.
+mu_p / mu_B                                                     proton mag. mom. to Bohr magneton ratio
+mu_p / mu_N                                                     proton mag. mom. to nuclear magneton ratio
+m_p 1                                                           proton mass
+m_p c2                                                          proton mass energy equivalent
+m_p c2                                                          proton mass energy equivalent in MeV
+m_p N_A                                                         proton molar mass
+m_p / m_mu                                                      proton-muon mass ratio
+mu_p / mu_n                                                     proton-neutron mag. mom. ratio
+m_p / m_n                                                       proton-neutron mass ratio
+m_p / u                                                         proton relative atomic mass
+m_p / m_tau                                                     proton-tau mass ratio
+circulationquantum 1                                            quantum of circulation
+circulationquantum 2                                            quantum of circulation times 2
+hbar / c m_e                                                    reduced Compton wavelength
+hbar / c m_mu                                                   reduced muon Compton wavelength
+hbar / c m_n                                                    reduced neutron Compton wavelength
+hbar / c m_p                                                    reduced proton Compton wavelength
+hbar / c m_tau                                                  reduced tau Compton wavelength
+Rinfinity 1                                                     Rydberg constant
+Rinfinity c                                                     Rydberg constant times c in Hz
+Rinfinity h c                                                   Rydberg constant times hc in eV
+Rinfinity h c                                                   Rydberg constant times hc in J
+sackurtetrodeconstant 1                                         Sackur-Tetrode constant (1 K, 101.325 kPa)
+sackurtetrodeconstant + ln(atm/100kPa)                          Sackur-Tetrode constant (1 K, 100 kPa)
+2 shielded_mu_h / hbar                                          shielded helion gyromag. ratio
+2 shielded_mu_h / h                                             shielded helion gyromag. ratio in MHz/T
+shielded_mu_h / mu_B                                            shielded helion mag. mom. to Bohr magneton ratio
+shielded_mu_h / mu_N                                            shielded helion mag. mom. to nuclear magneton ratio
+shielded_mu_h / mu_p                                            shielded helion to proton mag. mom. ratio
+shielded_mu_h / shielded_mu_p                                   shielded helion to shielded proton mag. mom. ratio
+2 shielded_mu_p / hbar                                          shielded proton gyromag. ratio
+2 shielded_mu_p / h                                             shielded proton gyromag. ratio in MHz/T
+shielded_mu_p / mu_B                                            shielded proton mag. mom. to Bohr magneton ratio
+shielded_mu_p / mu_N                                            shielded proton mag. mom. to nuclear magneton ratio
+tauwavelength 1                                                 tau Compton wavelength
+m_tau / m_e                                                     tau-electron mass ratio
+m_tau c2                                                        tau energy equivalent
+m_tau c2                                                        tau mass energy equivalent
+m_tau 1                                                         tau mass
+m_tau N_A                                                       tau molar mass
+m_tau / m_mu                                                    tau-muon mass ratio
+m_tau / m_n                                                     tau-neutron mass ratio
+m_tau / m_p                                                     tau-proton mass ratio
+thomsoncrosssection 1                                           Thomson cross section
+m_t / m_e                                                       triton-electron mass ratio
+mu_t 1                                                          triton mag. mom.
+mu_t / mu_B                                                     triton mag. mom. to Bohr magneton ratio
+mu_t / mu_N                                                     triton mag. mom. to nuclear magneton ratio
+m_t 1                                                           triton mass
+m_t c2                                                          triton mass energy equivalent
+m_t c2                                                          triton mass energy equivalent in MeV
+m_t N_A                                                         triton molar mass
+m_t / m_p                                                       triton-proton mass ratio
+m_t / u                                                         triton relative atomic mass
+mu_t / mu_p                                                     triton to proton mag. mom. ratio
+u 1                                                             unified atomic mass unit
+epsilon0 1                                                      vacuum electric permittivity
+mu0 1                                                           vacuum mag. permeability

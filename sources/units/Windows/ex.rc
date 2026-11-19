@@ -1,0 +1,4 @@
+" interactive wrapper for spell(1)
+:map  :!spellx -f lwords '%'
+" line-filling program similar to fmt(1)
+:map  !}adjust -Nq\# -l72

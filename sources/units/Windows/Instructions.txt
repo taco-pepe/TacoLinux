@@ -1,0 +1,129 @@
+        Building the Windows Installer for GNU units
+                Jeff Conrad 3 November 2024
+
+This procedure requires Microsoft Visual Studio; Unix-like utilities,
+including a Bourne-compatible shell, cp, expr, mv, ls, rm, and sed;
+MikTeX or equivalent; Inno Setup, and GnuPG or equivalent.  It was most
+recently run using the following packages:
+
+ * Microsoft Visual Studio 2022
+ * PTC MKS Toolkit for Developers 10.4
+ * MikTeX 24.1
+ * Inno Setup 6.6.3
+ * GnuPG 2.4.5
+ * rmbom (optional)
+
+Notes:
+------
+The file 'lwords' is a list of words for spell(1) to ignore; the file
+'ex.rc' is the equivalent of '.exrc' for PTC MKS vi/viw, _not_ a
+Resource Compiler file.  Two programs--spellx and adjust--are mapped in
+ex.rc.  The spellx program is an interactive front end to spell(1);
+adjust is a line-filling program similar to fmt(1).  The standard
+programs can be used to much the same effect.
+
+'rmbom' is a program that removes a UTF-8 marker ("BOM") from one or
+more files.  The program used here is an executable but some versions of
+sed(1) will also work.  A "BOM" can also be removed interactively using
+vim, notepad, notepad++, and perhaps some other editors.
+
+Procedure
+=========
+1.  If necessary, update Readme.txt and UnitsForWindows.texinfo,
+    including edition, version, copyright date, and build date.
+
+2.  Before running configure in the source directory, examine
+    Makefile.in in the Windows directory and ensure the correct values
+    for
+
+        ProgFiles32
+        ProgFiles64
+        GPG (GnuPG or equivalent)
+        ISCC (Inno Setup)
+        FLIP (program to convert LF to CRLF)
+	RMBOM (program to remove UTF-8 marker; optional)
+        TEXI2PDF
+        ZIP (WinZip command line)
+
+    Be aware that Makefile will be overwritten every time the configure
+    script is run.  If you wish to make changes without running
+    configure again, make the changes to Makefile.in, copy it to
+    "Makefile", and change the line
+
+        VERSION = @PACKAGE_VERSION@
+
+    so it gives the proper version, e.g.,
+
+        VERSION = 2.24a
+
+    This version must match the version in the units executable in the
+    source directory, which can be obtained by running "../units -V".
+
+3.  Run configure in the source directory to create Makefile in the
+    Windows directory.
+
+4.  In the source directory, build units.exe from the Windows command
+    prompt using nmake and Makefile.Win; this should produce the Windows
+    executable with the icon embedded.  Ensure that the proper VS
+    variables are set, such as by running
+    'x64 Native Tools Command Prompt for VS 2022'.
+
+    For this build, the data file and the locale map are installed in
+    the same directory as the executable, and are found with relative
+    pathnames.  A typical build for a Unix-like environment--such as the
+    PTC MKS Toolkit--uses absolute pathnames for these files.  If you
+    have previously done a build of the units distribution for a Unix-
+    like environment, ensure that any object files built for that
+    installation are removed by running "make clean"; then run
+    "nmake -f Makefile.Win" to build the executable for the Windows
+    binary distribution.
+
+5.  In the Windows directory, run "make" to generate the files and
+    create the installer.
+
+6.  Open UnitsForWindows.pdf and verify that the Table of Contents has
+    been properly generated; if not, run "make -u pdf" to recreate it;
+    open and confirm that it's OK, and run "make" again.  The TEXI2PDF
+    program is run twice, so the ToC should usually be correct.
+
+7.  Run "make check" and verify that the data file and the locale map
+    include only the filenames.  These are checked before building the
+    installer, so there should seldom be a problem.
+
+8.  Run "make bomcheck" to see if any text files have a UTF-8 marker
+    ("BOM"); make should return error code 1 if there are no matches.
+    If any matches are found, do what is necessary to remove the BOMs.
+    If you have a program that will do this, assign it to RMBOM and run
+    "make rmbom".
+
+9.  Run the installer to confirm that it works.  Run "make check2" to
+    verify that the paths for the data file and the locale map are
+    correct; as with the previous step, there should seldom be a
+    problem.
+
+10. Run "make winsig" to create the Directive and signature.
+
+11. Upload the distribution (e.g., for version 2.24):
+
+    ftp -d ftp-upload.gnu.org (user: anonymous)
+
+    # for release
+    cd /incoming/ftp/
+    put units-2.24-*
+      or
+    put units-2.24-setup.exe
+    put units-2.24-setup.exe.directive.asc
+    put units-2.24-setup.exe.sig
+
+    # for alpha
+    cd /incoming/alpha/
+
+    # for zipped version
+    put units-2.24-*.zip
+      or
+    put units-2.24-setup.zip
+    put units-2.24-setup.zip.directive.asc
+    put units-2.24-setup.zip.sig
+
+    # to archive
+    put units-2.24-setup.zip.archive.directive.asc

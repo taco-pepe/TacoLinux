@@ -182,6 +182,46 @@ without disturbing the base system.
 
 ---------
 
+## bundled cli tools
+
+`rootfs/usr/local/bin` ships a baseline of everyday CLI tools — `nano`
+included. Every one of them is a **fully static (musl) binary**, and that is
+deliberate: TacoLinux keeps its libc in `/nix/store`, so a normal dynamically
+linked binary from another distro has nothing to link against (this is exactly
+how XBPS managed to segfault the whole system by hauling in a Void `glibc`).
+Static binaries need no libc at all, so they run on the base system, in a
+chroot, or in a future rootfs without ever touching `/nix`.
+
+The sources are vendored in `sources/` (any `.git` removed) and the build is
+reproducible:
+
+```sh
+./scripts/fetch-cli-sources.sh   # download/extract into sources/
+./scripts/build-cli-tools.sh     # podman + alpine -> rootfs/usr/local/bin
+./scripts/test-cli-tools.sh      # assert every binary is static and runs
+```
+
+`scripts/cli-tools/apps.tsv` is the manifest (name, version, source URL,
+recipe). Adding a tool means one line there plus a `b_<name>()` recipe in
+`scripts/cli-tools/build-inner.sh`. Only ELF files without a `PT_INTERP`
+segment are harvested, so a dynamic build can never silently ship.
+
+Included (39 projects, 83 binaries): `nano` · `mg` · `less` · `tree` ·
+`ncdu` · `fdupes` · `file` · `patch` · `dos2unix`/`unix2dos`/`unix2mac` ·
+`jq` · `jo` · `pv` · `bc`/`dc` · `units` · `zstd` · `lz4` · `bzip2` · `unzip` ·
+`procps` (`ps`, `top`, `free`, `vmstat`, `watch`, `kill`, `pgrep`, `pkill`,
+`pmap`, `slabtop`, `sysctl`, …) · `psmisc` (`killall`, `pstree`, `fuser`,
+`prtstat`) · `strace` · `lsof` · `hdparm` · `pciutils` (`lspci`, `setpci`,
+`pcilmr`) · `ethtool` · `wget` · `tcpdump` · `mtr` · `iftop` · `sshpass` ·
+`net-tools` (`ifconfig`, `netstat`, `route`) · `socat` · `tmux` · `screen` ·
+`dialog` · `entr` · `moreutils`.
+
+Aliases (`unzstd`, `zstdcat`, `bunzip2`, `bzcat`, `zstdmt`) are plain symlinks
+next to the real binary. Licences stay upstream's; the sources are kept here
+so GPL binaries ship with their corresponding source.
+
+---------
+
 ## prebuilt images
 
 There are two steps.  First install the desktop closure into `rootfs/` -- it

@@ -1,0 +1,134 @@
+/*
+ * Global program option structure and the parsing function prototype.
+ *
+ * Copyright 2002-2008, 2010, 2012-2015, 2017, 2021, 2023-2026 Andrew Wood
+ *
+ * License GPLv3+: GNU GPL version 3 or later; see `docs/COPYING'.
+ */
+
+#ifndef _OPTIONS_H
+#define _OPTIONS_H 1
+
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <stdlib.h>
+#include <sys/types.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct opts_s;
+typedef struct opts_s *opts_t;
+
+/*
+ * Overall program actions to select.
+ */
+typedef enum {
+	PV_ACTION_NOTHING,		/* do nothing, and exit */
+	PV_ACTION_TRANSFER,		/* transfer data */
+	PV_ACTION_STORE_AND_FORWARD,	/* store to file, then output from it */
+	PV_ACTION_WATCHFD,		/* watch process file descriptors */
+	PV_ACTION_REMOTE_CONTROL,	/* remotely control another pv */
+	PV_ACTION_QUERY,		/* watch the state of another pv */
+	PV_ACTION_MONITOR		/* run a process, watch its stdin/out */
+} pvaction_t;
+
+/*
+ * Sides of a monitored command to monitor with PV_ACTION_MONITOR.
+ */
+typedef enum {
+	PV_SIDE_NONE,			/* don't monitor a command */
+	PV_SIDE_IN,			/* monitor only the input side */
+	PV_SIDE_OUT,			/* monitor only the output side */
+	PV_SIDE_BOTH			/* monitor both sides */
+} pvside_t;
+
+typedef /*@null@*/ const char * argv_string;
+
+/*
+ * Structure describing run-time options.
+ *
+ * Members are ordered by size to minimise padding.
+ */
+struct opts_s {
+	double interval;               /* interval between updates */
+	double delay_start;            /* delay before first display */
+	/*@keep@*/ const char *program_name; /* name the program is running as */
+	/*@keep@*/ /*@null@*/ char *output; /* fd to write output to */
+	/*@keep@*/ /*@null@*/ char *name;    /* display name, if any */
+	/*@keep@*/ /*@null@*/ char *name1;   /* first name, if two were given */
+	/*@keep@*/ /*@null@*/ char *default_bar_style; /* default bar style */
+	/*@keep@*/ /*@null@*/ char *format;  /* output format, if any */
+	/*@keep@*/ /*@null@*/ char *format1; /* first format, if two were given */
+	/*@keep@*/ /*@null@*/ char *pidfile; /* PID file, if any */
+	/*@keep@*/ /*@null@*/ char *pidfile1; /* first PID file, if two were given */
+	/*@keep@*/ /*@null@*/ char *store_and_forward_file; /* store and forward file, if any */
+	/*@keep@*/ /*@null@*/ char *extra_display; /* extra display specifier, if any */
+	/*@keep@*/ /*@null@*/ pid_t *watchfd_pid;  /* array of processes to watch fds of */
+	/*@keep@*/ /*@null@*/ int *watchfd_fd;  /* array of fds to watch in each one (0=all) */
+	/*@keep@*/ /*@null@*/ argv_string *argv;   /* array of non-option arguments */
+	size_t lastwritten;            /* show N bytes last written */
+	long double rate_limit;        /* rate limit, in bytes per second */
+	size_t buffer_size;            /* buffer size, in bytes (0=default) */
+	size_t pipe_buffer_size;       /* pipe buffer size, in bytes (0=default) */
+	off_t size;                    /* total size of data */
+	off_t error_skip_block;        /* skip block size, 0 for adaptive */
+	pid_t remote;                  /* PID of pv to update settings of */
+	pid_t query;                   /* PID of pv to query progress of */
+	unsigned int skip_errors;      /* skip read errors counter */
+	unsigned int average_rate_window; /* time window in seconds for average rate calculations */
+	unsigned int width;            /* screen width */
+	unsigned int height;           /* screen height */
+	unsigned int argc;             /* number of non-option arguments */
+	unsigned int argv_length;      /* allocated array size for non-option arguments */
+	unsigned int watchfd_count;	       /* number of watchfd items */
+	unsigned int watchfd_length;	       /* allocated watchfd item array size */
+	pvaction_t action;	       /* the program action to perform */
+	pvside_t side;		       /* which side of the monitored command to monitor */
+	bool progress;                 /* progress bar flag */
+	bool timer;                    /* timer flag */
+	bool eta;                      /* ETA flag */
+	bool fineta;                   /* absolute ETA flag */
+	bool rate;                     /* rate counter flag */
+	bool average_rate;             /* average rate counter flag */
+	bool bytes;                    /* bytes transferred flag */
+	bool bits;                     /* report transfer size in bits */
+	bool decimal_units;            /* decimal prefix flag */
+	bool bufpercent;               /* transfer buffer percentage flag */
+	bool force;                    /* force-if-not-terminal flag */
+	bool cursor;                   /* whether to use cursor positioning */
+	bool numeric;                  /* numeric output only */
+	bool wait;                     /* wait for transfer before display */
+	bool rate_gauge;               /* if size unknown, show rate vs max rate */
+	bool linemode;                 /* count lines instead of bytes */
+	bool null_terminated_lines;    /* lines are null-terminated */
+	bool no_display;               /* do nothing other than pipe data */
+	bool no_splice;                /* flag set if never to use splice */
+	bool stop_at_size;             /* set if we stop at "size" bytes */
+	bool sync_after_write;         /* set if we sync after every write */
+	bool direct_io;                /* set if O_DIRECT is to be used */
+	bool sparse_output;            /* set if we leave holes in the output */
+	bool discard_input;            /* set to write nothing to output */
+	bool use_osc94;		       /* set to enable OSC 9;4 sequences */
+	bool show_stats;	       /* set to write statistics at the end */
+	bool width_set_manually;       /* width was set manually, not detected */
+	bool height_set_manually;      /* height was set manually, not detected */
+	bool rate_limit_specified;     /* whether a rate limit value was given */
+	bool rate_limit_active;	       /* whether rate limiting is in effect (>0) */
+};
+
+/*@-exportlocal@*/
+/* splint thinks opts_free is exported but not used - it is used. */
+
+extern /*@null@*/ /*@only@*/ opts_t opts_parse(unsigned int, char **);
+extern void opts_free(/*@only@*/ opts_t);
+extern bool opts_add_file(opts_t, const char *);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _OPTIONS_H */

@@ -1,0 +1,539 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: pv 1.9.34\n"
+"Report-Msgid-Bugs-To: https://codeberg.org/ivarch/pv/issues\n"
+"POT-Creation-Date: 2026-11-01 22:18+0000\n"
+"PO-Revision-Date: 2026-05-16 19:25+0000\n"
+"Last-Translator: a-j-wood <a-j-wood@noreply.codeberg.org>\n"
+"Language-Team: Georgian <https://translate.codeberg.org/projects/pv/pv/ka/>\n"
+"Language: ka\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.17.1\n"
+
+#: src/main/help.c:300
+msgid "show progress bar"
+msgstr "პროგრესის ზოლის ჩვენება"
+
+#: src/main/help.c:303
+msgid "show elapsed time"
+msgstr "გასული დროის ჩვენება"
+
+#: src/main/help.c:306
+msgid "show estimated time of arrival (completion)"
+msgstr "სავარაუდო დასრულების დროის ჩვენება"
+
+#: src/main/help.c:309
+msgid "show absolute estimated time of arrival (completion)"
+msgstr "დასრულების აბსოლუტური სავარაუდო დროის ჩვენება"
+
+#: src/main/help.c:312
+msgid "show data transfer rate counter"
+msgstr "მონაცემთა გადაცემის სიჩქარის ჩვენება"
+
+#: src/main/help.c:315
+msgid "show data transfer average rate counter"
+msgstr "საშუალო მონაცემთა გადაცემის სიჩქარის ჩვენება"
+
+#: src/main/help.c:318
+msgid "show number of bytes transferred"
+msgstr "გადატანილი ბაიტების რაოდენობის ჩვენება"
+
+#: src/main/help.c:321
+msgid "show percentage of transfer buffer in use"
+msgstr "გამოყენებული გადაცემის ბუფერის პროცენტული მაჩვენებლის ჩვენება"
+
+#: src/main/help.c:323
+msgid "NUM"
+msgstr "ႬႭႫ"
+
+#: src/main/help.c:324
+msgid "show NUM bytes last written"
+msgstr "ბოლოს დაწერილი ႬႭႫ ბაიტის ჩვენება"
+
+#: src/main/help.c:326
+msgid "FORMAT"
+msgstr "ႴႭႰႫႠႲႨ"
+
+#: src/main/help.c:327
+msgid "set output format to FORMAT"
+msgstr "გამომავალი ფორმატის დაყენება ႴႭႰႫႠႲႨ"
+
+#: src/main/help.c:330
+msgid "output percentages, not visual information"
+msgstr "გამომავალი პროცენტები, არა ვიზუალური ინფორმაცია"
+
+#: src/main/help.c:333
+msgid "do not output any transfer information at all"
+msgstr "პროგრესის ინფორმაცია არ აჩვენოთ"
+
+#: src/main/help.c:337
+msgid "show number of bits transferred"
+msgstr "გადაცემული ბიტების რაოდენობის ჩვენება"
+
+#: src/main/help.c:340
+msgid "treat suffixes as multiples of 1000 rather than 1024"
+msgstr "სუფიქსების 1000-ის ჯერადად განხილვა 1024-ის ნაცვლად"
+
+#: src/main/help.c:343
+msgid "display nothing until first byte transferred"
+msgstr "არაფერი აჩვენოს პირველი ბაიტის გადატანამდე"
+
+#: src/main/help.c:345 src/main/help.c:360 src/main/help.c:363
+msgid "SEC"
+msgstr "ႼႠႫ"
+
+#: src/main/help.c:346
+msgid "display nothing until SEC seconds have passed"
+msgstr "არაფერი აჩვენოს ႼႠႫ წამების გასვლამდე"
+
+#: src/main/help.c:348
+msgid "SIZE"
+msgstr "ႦႭႫႠ"
+
+#: src/main/help.c:349
+msgid "set estimated data size to SIZE bytes"
+msgstr "მონაცემთა სავარაუდო ზომის ႦႭႫႠ ბაიტებზე დაყენება"
+
+#: src/main/help.c:352
+msgid "if size unknown, show rate vs max rate"
+msgstr "თუ ზომა უცნობია, აჩვენეთ სიჩქარე მაქსიმალურ სიჩქარესთან შედარებით"
+
+#: src/main/help.c:355
+msgid "count lines instead of bytes"
+msgstr "ბაიტების ნაცვლად ხაზების დათვლა"
+
+#: src/main/help.c:358
+msgid "lines are null-terminated"
+msgstr "ხაზები ნულით დასრულებულია"
+
+#: src/main/help.c:361
+msgid "update every SEC seconds"
+msgstr "განახლება ყოველ ႼႠႫ წამში"
+
+#: src/main/help.c:364
+msgid "compute average rate over past SEC seconds (default 30s)"
+msgstr ""
+"გამოთვალეთ საშუალო მაჩვენებელი ბოლო ႼႠႫ წამების განმავლობაში (ნაგულისხმევი "
+"30 წმ)"
+
+#: src/main/help.c:366
+msgid "WIDTH"
+msgstr "ႱႨႢႠႬႤ"
+
+#: src/main/help.c:367
+msgid "assume terminal is WIDTH characters wide"
+msgstr "ვივარაუდოთ, რომ ტერმინალი ႱႨႢႠႬႤ სიმბოლოს სიგანისაა"
+
+#: src/main/help.c:369
+msgid "HEIGHT"
+msgstr "ႱႨႫႠႶႪႤ"
+
+#: src/main/help.c:370
+msgid "assume terminal is HEIGHT rows high"
+msgstr "ვივარაუდოთ, რომ ტერმინალი ႱႨႫႠႶႪႤ რიგის სიმაღლისაა"
+
+#: src/main/help.c:372
+msgid "NAME"
+msgstr "ႱႠႾႤႪႨ"
+
+#: src/main/help.c:373
+msgid "prefix visual information with NAME"
+msgstr "გამომავალი ხაზის დასაწყისში ႱႠႾႤႪႨ-ის ჩვენება"
+
+#: src/main/help.c:375
+msgid "STYLE"
+msgstr "ႱႲႨႪႨ"
+
+#: src/main/help.c:376
+msgid "set default bar style to STYLE"
+msgstr "ნაგულისხმევი ზოლის სტილი ႱႲႨႪႨ-ზე დააყენეთ"
+
+#: src/main/help.c:378
+msgid "SPEC"
+msgstr "ႱႮႤႺႨႴႨႩႠ"
+
+#: src/main/help.c:379
+msgid "also send progress to SPEC"
+msgstr "ასევე გაუგზავნეთ პროგრესი ႱႮႤႺႨႴႨႩႠ-ს"
+
+#: src/main/help.c:382
+msgid "set terminal progress state with OSC 9;4 (ConEmu)"
+msgstr ""
+
+#: src/main/help.c:385
+msgid "output transfer statistics at the end"
+msgstr "სტატისტიკის ჩვენება ბოლოს"
+
+#: src/main/help.c:388
+msgid "output even if standard error is not a terminal"
+msgstr "გამომავალი მაშინაც კი, თუ სტანდარტული შეცდომა ტერმინალი არ არის"
+
+#: src/main/help.c:391
+msgid "use cursor positioning escape sequences"
+msgstr "კურსორის პოზიციონირება ტერმინალის კოდებით"
+
+#: src/main/help.c:394 src/main/help.c:430 src/main/help.c:449
+#: src/main/help.c:459
+msgid "FILE"
+msgstr "ႴႠႨႪႨ"
+
+#: src/main/help.c:395
+msgid "write output to FILE instead of stdout"
+msgstr "ჩაწერეთ გამომავალი ႴႠႨႪႨ-ში სტანდარტული გამომავალის ნაცვლად"
+
+#: src/main/help.c:397
+msgid "RATE"
+msgstr "ႱႨႹႵႠႰႤ"
+
+#: src/main/help.c:398
+msgid "limit transfer to RATE bytes per second"
+msgstr "სიჩქარის შეზღუდვა წამში ႱႨႹႵႠႰႤ ბაიტამდე"
+
+#: src/main/help.c:400 src/main/help.c:406 src/main/help.c:412
+msgid "BYTES"
+msgstr "ႡႠႨႲႤႡႨ"
+
+#: src/main/help.c:401
+msgid "use a buffer size of BYTES"
+msgstr "გამოიყენეთ ႡႠႨႲႤႡႨ ბუფერის ზომა"
+
+#: src/main/help.c:404
+msgid "never use splice(), always use read/write"
+msgstr "არასდროს გამოიყენოთ splice(), ყოველთვის გამოიყენეთ წაკითხვა/ჩაწერა"
+
+#: src/main/help.c:407
+msgid "set the pipe buffer size to BYTES"
+msgstr "მილის ბუფერის ზომა დააყენეთ ႡႠႨႲႤႡႨ ბაიტზე"
+
+#: src/main/help.c:410
+msgid "skip read errors in input"
+msgstr "შეყვანის შეცდომების გამოტოვება"
+
+#: src/main/help.c:413
+msgid "skip errors in BYTES blocks at a time"
+msgstr "შეცდომების გამოტოვება ႡႠႨႲႤႡႨ ბაიტის ბლოკებში"
+
+#: src/main/help.c:416
+msgid "stop after --size bytes have been transferred"
+msgstr "შეჩერება --size ბაიტების გადატანის შემდეგ"
+
+#: src/main/help.c:419
+msgid "flush cache to disk after every write"
+msgstr "დისკის ჩაწერის ქეშის გასუფთავება ყოველი ჩაწერის შემდეგ"
+
+#: src/main/help.c:422
+msgid "use direct I/O to bypass cache"
+msgstr "ქეშის გვერდის ავლით პირდაპირი შეყვანის/გამოყვანის გამოყენებით"
+
+#: src/main/help.c:425
+msgid "try to seek instead of writing null bytes"
+msgstr "დატოვეთ ხვრელები გამომავალში ნულოვანი ბაიტების ჩაწერის ნაცვლად"
+
+#: src/main/help.c:428
+msgid "discard input instead of writing to output"
+msgstr "შეყვანის გაუქმება გამოსავალში ჩაწერის ნაცვლად"
+
+#: src/main/help.c:431
+msgid "write all input to FILE before writing to output"
+msgstr "ყველა შემავალი მონაცემი ႴႠႨႪႨ-ში ჩაწერეთ გამოსავალში ჩაწერამდე"
+
+#: src/main/help.c:434
+msgid "PID[:FD]|=NAME|@LISTFILE"
+msgstr "ႮႨႣ[:ႴႠ]|=ႱႠႾႤႪႨ|@ႴႠႨႪႨ"
+
+#: src/main/help.c:435
+msgid "watch file FD opened by process PID"
+msgstr "ფაილის აღწერის ყურება ႴႠ გახსნილია ႮႨႣ პროცესის მიერ"
+
+#: src/main/help.c:438 src/main/help.c:441
+msgid "PID"
+msgstr "ႮႨႣ"
+
+#: src/main/help.c:439
+msgid "update settings of process PID"
+msgstr "პროცესის ႮႨႣ-ის პარამეტრების განახლება"
+
+#: src/main/help.c:442
+msgid "show progress of process PID"
+msgstr "პროცესის ႮႨႣ პროგრესის ჩვენება"
+
+#: src/main/help.c:446
+msgid "run a command and monitor its standard input, output, or both"
+msgstr ""
+"ბრძანების გაშვება და მისი სტანდარტული შეყვანის, გამომავალი ან ორივეს "
+"მონიტორინგი"
+
+#: src/main/help.c:450
+msgid "save process ID in FILE"
+msgstr "პროცესის იდენტიფიკატორის შენახვა ႴႠႨႪႨ-ში"
+
+#: src/main/help.c:453
+msgid "show this help and exit"
+msgstr "აჩვენეთ ეს დახმარება და გადით"
+
+#: src/main/help.c:456
+msgid "show version information and exit"
+msgstr "ვერსიის ინფორმაციის ჩვენება და გასვლა"
+
+#: src/main/help.c:460
+msgid "write debug logs to FILE"
+msgstr "გამართვის ჟურნალების ႴႠႨႪႨ-ში ჩაწერა"
+
+#: src/main/help.c:483
+#, c-format
+msgid "Usage: %s [OPTION] [FILE]..."
+msgstr "გამოყენება: %s [ႠႰႹႤႥႠ] [ႴႠႨႪႨ]..."
+
+#: src/main/help.c:499
+msgid ""
+"Concatenate FILE(s), or standard input, to standard output, with monitoring."
+msgstr "შეყვანის ფაილების გადატანა გამოსავალზე მონიტორინგით."
+
+#: src/main/help.c:641
+msgid "Supported format sequences:"
+msgstr "მხარდაჭერილი ფორმატის თანმიმდევრობები:"
+
+#: src/main/help.c:655
+#, c-format
+msgid "Please report any bugs to: %s"
+msgstr "ნებისმიერი შეცდომის შესახებ, გთხოვთ, შეატყობინოთ შემდეგ მისამართზე: %s"
+
+#: src/main/main.c:225
+msgid "(input)"
+msgstr "(შეყვანა)"
+
+#: src/main/main.c:389 src/main/options.c:1363
+msgid "a command to run must be specified"
+msgstr "შესასრულებელი ბრძანება უნდა იყოს მითითებული"
+
+#: src/main/main.c:778 src/main/options.c:760 src/main/options.c:780
+#: src/pv/display.c:1086 src/pv/state.c:45 src/pv/state.c:922
+#: src/pv/state.c:934 src/pv/state.c:970 src/pv/transfer.c:1335
+#: src/pv/transfer.c:1451 src/pv/transfer.c:1778
+msgid "memory allocation failure"
+msgstr "მეხსიერების გამოყოფის შეცდომა"
+
+#: src/main/options.c:420
+msgid "list files may not contain @ lines"
+msgstr "სიის ფაილები არ შეიძლება შეიცავდეს \"@\" ხაზებს"
+
+#: src/main/options.c:440 src/main/options.c:442 src/main/options.c:904
+msgid "process ID or pid:fd pair expected"
+msgstr ""
+
+#: src/main/options.c:451 src/main/options.c:453 src/main/options.c:911
+msgid "invalid process ID"
+msgstr ""
+
+#: src/main/options.c:832
+msgid "numeric value not understood"
+msgstr ""
+
+#: src/main/options.c:846
+msgid "integer argument expected"
+msgstr ""
+
+#: src/main/options.c:856
+msgid "numeric argument expected"
+msgstr ""
+
+#: src/main/options.c:867
+msgid "missing filename"
+msgstr "ფაილის სახელი აკლია"
+
+#: src/main/options.c:893
+msgid "missing process name"
+msgstr ""
+
+#: src/main/options.c:1186
+msgid "invalid side specification"
+msgstr ""
+
+#: src/main/options.c:1201
+#, c-format
+msgid "Try `%s --help' for more information."
+msgstr "დამატებითი ინფორმაციისთვის სცადეთ `%s --help'."
+
+#: src/main/options.c:1203
+#, c-format
+msgid "Try `%s -h' for more information."
+msgstr "დამატებითი ინფორმაციისთვის სცადეთ `%s -h'."
+
+#: src/main/options.c:1235
+msgid ""
+"cannot use line mode or transfer modifier options when watching file "
+"descriptors"
+msgstr ""
+
+#: src/main/options.c:1243
+msgid "cannot use cursor positioning when watching file descriptors"
+msgstr ""
+
+#: src/main/options.c:1251
+msgid "cannot use remote control when watching file descriptors"
+msgstr ""
+
+#: src/main/options.c:1259
+msgid "cannot use remote query when watching file descriptors"
+msgstr ""
+
+#: src/main/options.c:1267
+msgid "cannot transfer files when watching file descriptors"
+msgstr ""
+
+#: src/main/options.c:1291
+msgid "not available on systems without /proc/self/fdinfo"
+msgstr ""
+
+#: src/main/options.c:1302
+msgid "cannot use remote control and remote query together"
+msgstr ""
+
+#: src/main/options.c:1329
+msgid "monitor mode cannot be specified with this option"
+msgstr ""
+
+#: src/main/options.c:1341
+msgid "monitor mode cannot be used with store-and-forward"
+msgstr ""
+
+#: src/main/options.c:1352
+msgid "files cannot be specified with this option"
+msgstr ""
+
+#: src/main/version.c:28
+msgid "License: GPLv3+ <https://www.gnu.org/licenses/gpl-3.0.html>"
+msgstr "ლიცენზია: GPLv3+ <https://www.gnu.org/licenses/gpl-3.0.html>"
+
+#: src/main/version.c:29
+msgid "This is free software: you are free to change and redistribute it."
+msgstr ""
+"ეს არის უფასო პროგრამული უზრუნველყოფა: თქვენ შეგიძლიათ შეცვალოთ და ხელახლა "
+"გაავრცელოთ იგი."
+
+#: src/main/version.c:30
+msgid "There is NO WARRANTY, to the extent permitted by law."
+msgstr "კანონით დაშვებული ფარგლებში, გარანტია არ არსებობს."
+
+#: src/main/version.c:32
+msgid "Project web site"
+msgstr "პროექტის ვებსაიტი"
+
+#: src/pv/cursor.c:108 src/pv/cursor.c:135
+msgid "failed to open lock file"
+msgstr "დაბლოკვის ფაილის გახსნა ვერ მოხერხდა"
+
+#: src/pv/cursor.c:790 src/pv/cursor.c:792
+msgid "interrupted by a signal"
+msgstr "შეწყვეტილია სიგნალის მიერ"
+
+#: src/pv/display.c:311
+msgid "yzafpnum kMGTPEZY"
+msgstr ""
+
+#: src/pv/display.c:329
+msgid "yzafpnum KMGTPEZY"
+msgstr ""
+
+#: src/pv/file.c:81
+msgid "/dev/null is not usable"
+msgstr "/dev/null არ არის გამოსაყენებელი"
+
+#: src/pv/file.c:371
+msgid "error closing file"
+msgstr "ფაილის დახურვის შეცდომა"
+
+#: src/pv/file.c:438
+msgid "input file is also the output"
+msgstr "შეტანის ფაილი ასევე გამოსატანიცაა"
+
+#: src/pv/file.c:596
+msgid "(none)"
+msgstr "(არცერთი)"
+
+#: src/pv/file.c:598
+msgid "(stdin)"
+msgstr "(stdin)"
+
+#: src/pv/format/averagerate.c:34 src/pv/format/progressbar.c:92
+#: src/pv/format/rate.c:36 src/pv/loop.c:181
+msgid "b/s"
+msgstr ""
+
+#: src/pv/format/averagerate.c:38 src/pv/format/progressbar.c:96
+#: src/pv/format/rate.c:40
+msgid "/s"
+msgstr ""
+
+#: src/pv/format/averagerate.c:38 src/pv/format/progressbar.c:96
+#: src/pv/format/rate.c:40 src/pv/loop.c:181
+msgid "B/s"
+msgstr ""
+
+#: src/pv/format/bytes.c:35
+msgid "b"
+msgstr ""
+
+#: src/pv/format/bytes.c:39 src/pv/transfer.c:1284
+msgid "B"
+msgstr ""
+
+#: src/pv/format/eta.c:63 src/pv/format/eta.c:67
+msgid "ETA"
+msgstr ""
+
+#: src/pv/format/fineta.c:93
+msgid "FIN"
+msgstr ""
+
+#: src/pv/loop.c:180
+msgid "rate min/avg/max/mdev"
+msgstr "სიჩქარე მინიმალური/საშუალო/მაქსიმალური/სტანდარტული გადახრა"
+
+#: src/pv/loop.c:192
+msgid "rate not measured"
+msgstr "სიჩქარე არ იზომებოდა"
+
+#: src/pv/loop.c:1098 src/pv/loop.c:1114 src/pv/loop.c:1132 src/pv/remote.c:93
+#: src/pv/remote.c:188 src/pv/remote.c:536 src/pv/remote.c:582
+#: src/pv/watchpid.c:123 src/pv/watchpid.c:132 src/pv/watchpid.c:142
+#: src/pv/watchpid.c:151 src/pv/watchpid.c:158 src/pv/watchpid.c:194
+#: src/pv/watchpid.c:206 src/pv/watchpid.c:218 src/pv/watchpid.c:268
+#: src/pv/watchpid.c:277 src/pv/watchpid.c:286 src/pv/watchpid.c:401
+#: src/pv/watchpid.c:409 src/pv/watchpid.c:556 src/pv/watchpid.c:565
+#: src/pv/watchpid.c:586
+msgid "pid"
+msgstr ""
+
+#: src/pv/loop.c:1132 src/pv/watchpid.c:132 src/pv/watchpid.c:142
+#: src/pv/watchpid.c:151 src/pv/watchpid.c:160 src/pv/watchpid.c:268
+#: src/pv/watchpid.c:277 src/pv/watchpid.c:288
+msgid "fd"
+msgstr ""
+
+#: src/pv/remote.c:242 src/pv/remote.c:636
+msgid "message not received"
+msgstr "შეტყობინება არ არის მიღებული"
+
+#: src/pv/remote.c:659 src/pv/remote.c:677
+msgid "SA_SIGINFO not supported on this system"
+msgstr ""
+
+#: src/pv/transfer.c:1173
+msgid "warning: read errors detected"
+msgstr "გაფრთხილება: წაკითხვის შეცდომები აღმოჩენილია"
+
+#: src/pv/transfer.c:1283
+msgid "skipped past read error"
+msgstr ""
+
+#: src/pv/transfer.c:1642
+msgid "write error"
+msgstr "ჩაწერის შეცდომა"
+
+#: src/pv/watchpid.c:160 src/pv/watchpid.c:288
+msgid "not a regular file or block device"
+msgstr ""
