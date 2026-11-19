@@ -198,6 +198,16 @@ set_password() {
 set_password root "${ROOT_PASSWORD:-tacolinux}"
 set_password taco "${USER_PASSWORD:-taco}"
 
+# --- index man pages ------------------------------------------------------
+# mandoc warns "outdated mandoc.db lacks ... run makewhatis" whenever it finds
+# a page by globbing but not in the index.  Build that index here so the
+# shipped `man tacolinux` is clean out of the box.  makewhatis is static, so it
+# can be run straight against the mounted tree without a chroot.
+if [ -x "$MOUNT/usr/local/bin/makewhatis" ] && [ -d "$MOUNT/usr/share/man" ]; then
+  log "indexing man pages"
+  "$MOUNT/usr/local/bin/makewhatis" "$MOUNT/usr/share/man" 2>/dev/null || true
+fi
+
 # sshd refuses to start unless its chroot directory is root-owned and not
 # group/world-writable ("/var/empty must be owned by root").
 mkdir -p "$MOUNT/var/empty"
