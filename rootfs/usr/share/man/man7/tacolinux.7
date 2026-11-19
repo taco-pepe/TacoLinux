@@ -74,6 +74,17 @@ The sources are vendored under
 and the build is reproducible from
 .Pa /scripts/build-cli-tools.sh .
 .Pp
+.Nm hyfetch
+prints system information with pride-flag colours.
+Its TacoLinux wordmark is stored in
+.Pa /etc/tacolinux/hyfetch.ascii
+and uses colour markers that any flag can fill.
+The first run opens the setup wizard and asks which flag you want; run
+.Dl hyfetch -c
+to pick another one later, or
+.Dl hyfetch -p transgender
+for a single run.
+.Pp
 The manual itself is served by
 .Xr mandoc 1 ,
 also static.

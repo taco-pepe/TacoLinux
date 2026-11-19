@@ -262,6 +262,29 @@ Aliases (`unzstd`, `zstdcat`, `bunzip2`, `bzcat`, `zstdmt`) are plain symlinks
 next to the real binary. Licences stay upstream's; the sources are kept here
 so GPL binaries ship with their corresponding source.
 
+### flags with hyfetch
+
+`hyfetch` is the system-info tool: neofetch with pride flags. It is the one
+prebuilt binary in the tree — upstream 2.x is Rust, and TacoLinux carries no
+Rust toolchain, so `scripts/vendor-hyfetch.sh` fetches the pinned musllinux
+wheel and copies its fully static `hyfetch/rust/hyfetch` verbatim. The source
+tarball and licence are kept in `sources/hyfetch/`.
+
+The TacoLinux wordmark lives in `/etc/tacolinux/hyfetch.ascii` with `${c1}`…
+`${c6}` colour markers, so hyfetch can paint it with any of its ~150 flags.
+Graphical logins run `hyfetch --ascii-file=/etc/tacolinux/hyfetch.ascii`;
+the first run opens hyfetch's own setup wizard and asks you to pick your flag,
+colour mode and lightness. Change it any time with:
+
+```sh
+hyfetch -c              # interactive setup (pick a flag)
+hyfetch -p transgender  # one-off flag
+hyfetch -p random       # let it choose
+```
+
+The `--ascii-file` on the login wrapper keeps the TacoLinux logo even after
+the wizard saves a different distro.
+
 ---------
 
 ## prebuilt images

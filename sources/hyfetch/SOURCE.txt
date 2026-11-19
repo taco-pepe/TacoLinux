@@ -1,0 +1,8 @@
+hyfetch 2.1.1 -- prebuilt static musl x86_64 binary
+Wheel:   https://github.com/hykilpikonna/hyfetch/releases/download/2.1.1/hyfetch-2.1.1-py3-none-musllinux_1_1_x86_64.whl
+         sha256 d74bb00dedbd901b44e22d015ad79f3c5ce6cada618ec0f2fd63bb8de0395117
+Source:  https://github.com/hykilpikonna/hyfetch/releases/download/2.1.1/hyfetch-2.1.1.tar.gz
+         sha256 3dbc5165eeb1790ff9abbc257f834ff9cc6b0f6edd57ea10fcdd2a691710bc20
+Binary:  rootfs/usr/local/bin/hyfetch
+         the wheel's hyfetch/rust/hyfetch, copied verbatim
+Refresh: scripts/vendor-hyfetch.sh
