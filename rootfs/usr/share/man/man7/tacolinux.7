@@ -1,0 +1,169 @@
+.Dd November 19, 2026
+.Dt TACOLINUX 7
+.Os TacoLinux
+.Sh NAME
+.Nm tacolinux
+.Nd the read-the-manual Linux distribution
+.Sh DESCRIPTION
+.Nm
+is a small, self-contained Linux distribution built from a minimal base
+rootfs plus a closure of statically linked command-line tools.
+It is installed by hand: partition a disk, copy the root filesystem
+with
+.Xr rsync 1 ,
+and run
+.Xr grub-install 8 .
+There is no graphical installer and no hand-holding.
+.Pp
+The default desktop session is
+.Nm dwm .
+.Nm xfce
+is installed alongside it for when a full desktop is wanted.
+Both are selected at the
+.Nm sddm
+greeter.
+.Sh LOGGING IN
+The image ships two accounts with known defaults:
+.Bl -tag -width "tacolinux" -compact
+.It Li taco Li / Li taco
+the normal user, a member of the
+.Li wheel
+group.
+.It Li root Li / Li tacolinux
+the superuser, for console and recovery use.
+.El
+.Pp
+The repository does not contain password hashes.
+Both accounts are locked in
+.Pa /etc/shadow
+and the image build hashes the plaintext defaults above at build time,
+using SHA-512 so that both PAM and the bundled static tools can verify them.
+Change them after the first login with
+.Xr passwd 1 .
+.Pp
+The
+.Li taco
+and
+.Li wheel
+accounts have passwordless
+.Xr sudo 8
+.Pq Li NOPASSWD: ALL ,
+so
+.Dl sudo -i
+yields a root shell without a prompt.
+.Xr su 1
+is a static BusyBox binary installed setuid root; it asks for the target
+user's password.
+.Sh BUNDLED TOOLS
+Every program in
+.Pa /usr/local/bin
+is a fully static musl binary with no
+.Dv PT_INTERP ,
+so it runs on the base system, in a chroot, or in a future rootfs without
+depending on the Nix store for a C library.
+.Pp
+The set includes editors
+.Pq nano , mg ,
+pagers and browsers
+.Pq less , links ,
+utilities
+.Pq tree , jq , bc , zstd , lz4 , tmux , screen , strace , lsof , socat , wget ,
+and a full process and network toolbox.
+The sources are vendored under
+.Pa /sources
+and the build is reproducible from
+.Pa /scripts/build-cli-tools.sh .
+.Pp
+The manual itself is served by
+.Xr mandoc 1 ,
+also static.
+The
+.Nm man
+command is a symlink to
+.Nm mandoc ,
+and this page is the distribution manual.
+.Sh BROWSING
+.Nm links
+works in two modes from the same binary:
+.Bl -tag -width "links -g" -compact
+.It Li links
+the text-mode browser, usable on a console or in a terminal.
+.It Li links Fl g
+the graphical browser, drawn with Links' built-in fonts on an X display.
+.El
+.Sh INSTALLING
+Read
+.Pa README.md
+in the repository, then, from a rescue environment:
+.Bl -enum
+.It
+Partition the target disk and create a boot and a root filesystem.
+.It
+Mount the root filesystem and extract the rootfs with
+.Xr rsync 1 .
+.It
+Install GRUB to the disk.
+.It
+Reboot, log in, and read this manual again.
+.El
+.Pp
+Prebuilt images are published for downloads; the tag builds are compressed
+with
+.Xr xz 1
+and accompanied by a
+.Pa SHA256SUMS
+file so they remain usable from slow or filtered networks.
+.Sh ENVIRONMENT
+.Bl -tag -width MANPAGER -compact
+.It Ev MANPAGER
+pager used by
+.Nm man ;
+defaults to
+.Xr less 1 .
+.It Ev PAGER
+fallback pager when
+.Ev MANPAGER
+is unset.
+.El
+.Sh FILES
+.Bl -tag -width "/usr/local/share/tacolinux" -compact
+.It Pa /etc/sudoers
+passwordless sudo rules.
+.It Pa /etc/pam.d/
+PAM service stacks, including
+.Pa passwd ,
+.Pa chpasswd ,
+.Pa su
+and
+.Pa su-l .
+.It Pa /etc/login.defs
+sets
+.Dv ENCRYPT_METHOD SHA512 .
+.It Pa /usr/local/bin/
+statically linked CLI tools and the
+.Nm man
+symlink.
+.It Pa /usr/local/share/tacolinux/cli-tools.txt
+list of shipped CLI binaries.
+.It Pa /usr/share/man/man7/tacolinux.7
+this manual page.
+.It Pa /scripts/build-vm-image.sh
+builds a bootable image and sets the default passwords.
+.El
+.Sh SEE ALSO
+.Xr links 1 ,
+.Xr mandoc 1 ,
+.Xr passwd 1 ,
+.Xr rsync 1 ,
+.Xr su 1 ,
+.Xr grub-install 8 ,
+.Xr sudo 8
+.Pp
+The full manual lives in
+.Pa README.md
+at the repository root.
+.Sh AUTHORS
+.An TacoLinux contributors
+.Sh BUGS
+Report issues at the project forge.
+If it segfaults, it was probably a dynamically linked binary.

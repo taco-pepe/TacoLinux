@@ -6,6 +6,7 @@ nano	9.3	nano	https://deb.debian.org/debian/pool/main/n/nano/nano_9.3.orig.tar.x
 less	668	less	https://deb.debian.org/debian/pool/main/l/less/less_668.orig.tar.gz	less
 libxau	1.0.12	libxau	https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.gz	libxau
 links	2.30	links	https://links.twibright.com/download/links-2.30.tar.bz2	links
+mandoc	1.14.6	mandoc	https://mandoc.bsd.lv/snapshots/mandoc-1.14.6.tar.gz	mandoc
 tree	2.3.1	tree	https://github.com/Old-Man-Programmer/tree/archive/refs/tags/2.3.1.tar.gz	tree
 jq	1.8.1	jq	https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-1.8.1.tar.gz	jq
 ncdu	1.22	ncdu	https://deb.debian.org/debian/pool/main/n/ncdu/ncdu_1.22.orig.tar.gz	ncdu

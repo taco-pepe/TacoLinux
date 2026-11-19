@@ -233,7 +233,7 @@ recipe). Adding a tool means one line there plus a `b_<name>()` recipe in
 `scripts/cli-tools/build-inner.sh`. Only ELF files without a `PT_INTERP`
 segment are harvested, so a dynamic build can never silently ship.
 
-Included (41 projects, 84 binaries): `nano` · `mg` · `less` · `links` · `tree` ·
+Included (42 projects, 88 binaries): `nano` · `mg` · `less` · `mandoc`/`man` · `links` · `tree` ·
 `ncdu` · `fdupes` · `file` · `patch` · `dos2unix`/`unix2dos`/`unix2mac` ·
 `jq` · `jo` · `pv` · `bc`/`dc` · `units` · `zstd` · `lz4` · `bzip2` · `unzip` ·
 `procps` (`ps`, `top`, `free`, `vmstat`, `watch`, `kill`, `pgrep`, `pkill`,
@@ -246,6 +246,17 @@ Included (41 projects, 84 binaries): `nano` · `mg` · `less` · `links` · `tre
 `links` works in both modes from the same static binary: plain `links` is the
 TUI browser, and `links -g` opens the graphical browser on an X display (it
 draws with Links' built-in font, so it needs no runtime data files).
+
+`man` is a symlink to `mandoc`, so the manual is available offline. The
+distribution itself has a page:
+
+```sh
+man tacolinux
+```
+
+It covers the default logins, passwordless sudo, the desktop sessions, the
+static tool bundle, and the hand-install procedure. `less` is the pager; set
+`MANPAGER` or `PAGER` to change it.
 
 Aliases (`unzstd`, `zstdcat`, `bunzip2`, `bzcat`, `zstdmt`) are plain symlinks
 next to the real binary. Licences stay upstream's; the sources are kept here

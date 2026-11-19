@@ -227,6 +227,25 @@ b_links() {
     make -j"$J"
     make install
 }
+b_mandoc() {
+    in_src mandoc
+    # mandoc's configure reads configure.local, not command-line flags.
+    cat > configure.local <<-EOF
+PREFIX=$PREFIX
+MANDIR=$PREFIX/share/man
+MANPATH_DEFAULT="$PREFIX/share/man:/usr/share/man"
+MANPATH_BASE="/usr/share/man"
+CFLAGS="$CFLAGS"
+LDFLAGS="$LDFLAGS"
+LN="ln -sf"
+EOF
+    ./configure
+    make -j"$J"
+    make install
+    # man/apropos/whatis are the same binary dispatched by argv[0].  Only ship
+    # mandoc here; rootfs/usr/local/bin/man is a committed symlink to it.
+    rm -f "$PREFIX/bin/man" "$PREFIX/bin/apropos" "$PREFIX/bin/whatis"
+}
 b_libmnl() { in_src libmnl; ./configure --prefix=$PREFIX --disable-shared --enable-static; make -j"$J"; make install; }
 b_bzip2()     { in_src bzip2; make -j"$J" CC=gcc LDFLAGS=-static; install -m755 bzip2 $PREFIX/bin/; }
 b_procps()    { in_src procps; ./configure --prefix=$PREFIX --disable-nls --without-systemd --disable-shared; make -j"$J"; make install; }

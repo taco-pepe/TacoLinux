@@ -3,6 +3,7 @@
 bc
 bzip2
 dc
+demandoc
 dialog
 dos2unix
 entr
@@ -31,6 +32,8 @@ lsof
 lspci
 lz4
 mac2unix
+makewhatis
+mandoc
 mg
 mispipe
 mtr
@@ -64,6 +67,7 @@ setpci
 slabtop
 socat
 socat1
+soelim
 sponge
 sshpass
 strace
