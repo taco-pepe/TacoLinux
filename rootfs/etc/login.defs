@@ -181,7 +181,10 @@ CHFN_RESTRICT		rwh
 # Note: if you use PAM, it is recommended to use a value consistent with
 # the PAM modules configuration.
 #
-ENCRYPT_METHOD YESCRYPT
+# SHA-512 is understood by both the glibc/libxcrypt side (PAM, SDDM) and the
+# bundled static BusyBox su/passwd.  YESCRYPT ($y$) would lock the static
+# tools out of /etc/shadow, so keep hashes in the portable $6$ format.
+ENCRYPT_METHOD SHA512
 
 #
 # Only works if ENCRYPT_METHOD is set to SHA256 or SHA512.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Install setuid helpers (unix_chkpwd, su)
+Documentation=file:/etc/tmpfiles.d/taco-wrappers.conf
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/taco-wrappers.sh
+
+[Install]
+WantedBy=multi-user.target

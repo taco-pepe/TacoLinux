@@ -1,0 +1,8 @@
+# su(1) -- switch user.
+#
+# The bundled su is BusyBox and checks /etc/shadow directly, but keep a
+# correct PAM stack here for any PAM-enabled su that is added later.
+auth       include  system-login
+account    include  system-login
+password   include  system-login
+session    include  system-login

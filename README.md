@@ -182,6 +182,33 @@ without disturbing the base system.
 
 ---------
 
+## logging in
+
+The image ships two accounts with known, documented passwords:
+
+| user | password | notes |
+| --- | --- | --- |
+| `taco` | `taco` | normal user, member of `wheel` |
+| `root` | `tacolinux` | console / recovery |
+
+`taco` has passwordless sudo (`/etc/sudoers`: `taco` and `%wheel` are
+`NOPASSWD: ALL`), so `sudo -i` gives a root shell. `su` is a static BusyBox 1.37
+binary, installed setuid, and asks for root's password; `su -` works from a
+normal login.
+
+The repository does **not** ship opaque pre-hashed passwords. Both accounts
+are locked in `rootfs/etc/shadow`; `build-vm-image.sh` hashes the plaintext
+defaults above at image-build time and installs them. Override them with
+`ROOT_PASSWORD=...` and `USER_PASSWORD=...` on the build command line.
+Hashes are SHA-512 (`$6$`) so that both PAM (SDDM, console login) and the
+bundled static tools can verify them.
+
+Change a password inside the system with `passwd`. The binary is setuid root
+and `/etc/pam.d/passwd` exists, so unprivileged users can change their own
+password; `/etc/login.defs` keeps new hashes in the same SHA-512 format.
+
+---------
+
 ## bundled cli tools
 
 `rootfs/usr/local/bin` ships a baseline of everyday CLI tools — `nano`
@@ -251,6 +278,9 @@ sudo ./scripts/build-vm-image.sh
 
 # useful knobs
 sudo ROOTFS=./rootfs IMG_SIZE=8G COMPRESS=zstd ./scripts/build-vm-image.sh
+
+# pick different default passwords (plaintext; hashed at build time)
+sudo ROOT_PASSWORD='...' USER_PASSWORD='...' ./scripts/build-vm-image.sh
 ```
 
 Outputs land in `dist/`:

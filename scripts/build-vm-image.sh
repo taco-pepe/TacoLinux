@@ -26,6 +26,8 @@
 #   QCOW2       1 to also make a qcow2          (default: 1)
 #   COMPRESS    zstd | xz | gzip | none         (default: zstd)
 #   KEEP_RAW    1 to keep the uncompressed raw  (default: 0)
+#   ROOT_PASSWORD  root's password              (default: tacolinux)
+#   USER_PASSWORD  taco's password              (default: taco)
 #
 set -euo pipefail
 
@@ -48,7 +50,7 @@ die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 [ -d "$ROOTFS" ] || die "rootfs not found at $ROOTFS"
 [ -f "$REPO_ROOT/bootstrap/bzImage" ] || die "missing bootstrap/bzImage"
 [ -f "$REPO_ROOT/bootstrap/initramfs.img" ] || die "missing bootstrap/initramfs.img"
-for cmd in sfdisk losetup mkfs.ext4 mount rsync blkid qemu-img; do
+for cmd in sfdisk losetup mkfs.ext4 mount rsync blkid qemu-img openssl; do
   command -v "$cmd" >/dev/null || die "missing required command: $cmd"
 done
 GRUB_INSTALL=$(command -v grub-install || command -v grub2-install) \
@@ -167,6 +169,35 @@ chmod 644 "$MOUNT/etc/passwd" "$MOUNT/etc/group" "$MOUNT/etc/hostname" \
 chmod 640 "$MOUNT/etc/shadow" "$MOUNT/etc/gshadow" 2>/dev/null || true
 chmod 1777 "$MOUNT/tmp" "$MOUNT/var/tmp" 2>/dev/null || true
 chmod 700 "$MOUNT/root" 2>/dev/null || true
+
+# --- default passwords -----------------------------------------------------
+# The repository deliberately stores no password hashes: root and taco are
+# locked in rootfs/etc/shadow, and the documented defaults are applied here
+# from plaintext.  Unix still needs a hash on disk to authenticate, but it is
+# generated fresh at build time instead of committing an opaque, unknown one.
+#
+# SHA-512 ($6$) is used deliberately.  chpasswd otherwise defaults to yescrypt
+# ($y$), which the bundled static BusyBox su/passwd cannot verify; $6$ is
+# understood by both PAM (SDDM, console login) and those static tools.
+# /etc/login.defs keeps user-initiated passwd changes in the same format.
+log "setting default passwords"
+set_password() {
+  local user=$1 plain=$2 salt hash tmp
+  [ -n "$plain" ] || return 0
+  salt=$(openssl rand -hex 8)
+  hash=$(openssl passwd -6 -salt "$salt" "$plain")
+  tmp="$MOUNT/etc/shadow.tmp"
+  awk -F: -v OFS=: -v u="$user" -v h="$hash" \
+      '$1 == u { $2 = h } { print }' "$MOUNT/etc/shadow" > "$tmp"
+  chmod 640 "$tmp"
+  chown root:root "$tmp" 2>/dev/null || true
+  mv "$tmp" "$MOUNT/etc/shadow"
+  awk -F: -v u="$user" '$1 == u && $2 !~ /^!/ { found = 1 } END { exit !found }' \
+      "$MOUNT/etc/shadow" || die "could not set password for $user"
+}
+set_password root "${ROOT_PASSWORD:-tacolinux}"
+set_password taco "${USER_PASSWORD:-taco}"
+
 # sshd refuses to start unless its chroot directory is root-owned and not
 # group/world-writable ("/var/empty must be owned by root").
 mkdir -p "$MOUNT/var/empty"
@@ -181,6 +212,7 @@ chmod 755 "$MOUNT/var/empty" 2>/dev/null || true
 # sudo that cannot elevate, a broken ssh-keysign, and a broken xlaunch.
 log "restoring setuid helpers"
 for helper in "4755 usr/bin/sudo" "4755 usr/local/sbin/xlaunch" \
+              "4755 usr/local/bin/su" "4755 usr/local/bin/passwd" \
               "4711 usr/libexec/ssh-keysign"; do
   mode=${helper%% *}; path=${helper#* }
   [ -e "$MOUNT/$path" ] || die "missing setuid helper: /$path"
