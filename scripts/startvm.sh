@@ -42,15 +42,17 @@ MON_SOCK="${OVL%.qcow2}.monitor.sock"
 : "${MEM:=1536}"
 : "${SMP:=2}"
 : "${DISPLAY_BACKEND:=gtk}"
+: "${SSH_PORT:=2222}"
 
 echo "Booting: $IMG"
 echo "Overlay: $OVL"
 echo "Serial log: $SERIAL_LOG"
+echo "SSH: ssh -p $SSH_PORT taco@localhost"
 
 exec qemu-system-x86_64 -enable-kvm -cpu host -m "$MEM" -smp "$SMP" \
   -drive "file=$OVL,format=qcow2,if=virtio" \
   -vga std -display "$DISPLAY_BACKEND" \
-  -nic user,model=virtio-net-pci \
+  -nic "user,model=virtio-net-pci,hostfwd=tcp::${SSH_PORT}-:22" \
   -device qemu-xhci,id=xhci -device usb-tablet,bus=xhci.0 \
   -monitor "unix:$MON_SOCK,server=on,wait=off" \
   -serial "file:$SERIAL_LOG" \

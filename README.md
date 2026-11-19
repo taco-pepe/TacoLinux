@@ -263,6 +263,18 @@ the smallest and slowest mode) and `QCOW2=0`, so a release contains only the
 compressed raw image and `SHA256SUMS` -- no multi-gigabyte qcow2.  Local and
 manual builds keep the faster zstd + qcow2 defaults.
 
+Run an image without touching it (a qcow2 overlay is created automatically):
+
+```sh
+./scripts/startvm.sh dist/tacolinux-<ver>-x86_64.img
+# then, from the host:
+ssh -p 2222 taco@localhost
+```
+
+`DISPLAY_BACKEND=none` boots headless, and `SSH_PORT`, `MEM` and `SMP` are
+overridable (`SSH_PORT=2223 ./scripts/startvm.sh …`).  The base `dist/*.img`
+is never modified.
+
 Disk layout (GPT):
 
 | Partition | Size | Contents |
