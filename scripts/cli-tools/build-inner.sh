@@ -215,6 +215,18 @@ b_unzip() {
     install -m755 unzip $PREFIX/bin/
 }
 
+b_libxau() { in_src libxau; ./configure --prefix=$PREFIX --disable-shared --enable-static; make -j"$J"; make install; }
+b_links() {
+    in_src links
+    # musl/libc has no strmode(); libbsd provides it via bsd/string.h
+    sed -i '1i #include <bsd/string.h>' file.c
+    CFLAGS="$CFLAGS" LDFLAGS="-L$PREFIX/lib" LIBS="-lbsd -lxcb -lXau -lXdmcp" \
+        ./configure --prefix=$PREFIX --x-includes=/usr/include --x-libraries=/usr/lib \
+            --enable-graphics --with-x \
+            --without-freetype --without-libtiff --disable-javascript --disable-nls
+    make -j"$J"
+    make install
+}
 b_libmnl() { in_src libmnl; ./configure --prefix=$PREFIX --disable-shared --enable-static; make -j"$J"; make install; }
 b_bzip2()     { in_src bzip2; make -j"$J" CC=gcc LDFLAGS=-static; install -m755 bzip2 $PREFIX/bin/; }
 b_procps()    { in_src procps; ./configure --prefix=$PREFIX --disable-nls --without-systemd --disable-shared; make -j"$J"; make install; }

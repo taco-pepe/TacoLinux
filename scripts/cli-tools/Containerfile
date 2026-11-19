@@ -15,6 +15,14 @@ RUN apk add --no-progress --no-cache \
   oniguruma-dev \
   readline-dev readline-static \
   elfutils-dev libcap-dev bsd-compat-headers lz4-dev \
-  libbsd-dev libbsd-static gettext-static groff
+  libbsd-dev libbsd-static gettext-static groff \
+  libxau-dev \
+  libx11-dev libx11-static libxcb-dev libxcb-static \
+  libxext-dev libxext-static \
+  libpng-dev libpng-static \
+  libjpeg-turbo-dev libjpeg-turbo-static \
+  libwebp-dev libwebp-static \
+  bzip2-dev bzip2-static \
+  zstd-dev zstd-static
 
 WORKDIR /work

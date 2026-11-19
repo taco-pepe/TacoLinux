@@ -26,6 +26,7 @@ lckdo
 less
 lessecho
 lesskey
+links
 lsof
 lspci
 lz4
