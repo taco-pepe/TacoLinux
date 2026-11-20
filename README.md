@@ -289,7 +289,7 @@ the wizard saves a different distro.
 
 ## updating with tcpatch
 
-TacoLinux has no package manager, but it does have **tcpatch** — a small
+TacoLinux has only the nix package manager (not for updating), but it does have **tcpatch** — a small
 updater that applies `.tcpatch` bundles to the live root filesystem. The build
 installs it into every image (`/usr/local/bin/tcpatch` → `/usr/lib/tcpatcher/`),
 so it is ready to use on a fresh boot. It is a bash script, not a compiled
@@ -415,4 +415,3 @@ runners are containers and cannot do this.
   whole point of qcow2. It is already sparse; ship it as-is.
 - gzip is slower and compresses worse than zstd on disk images. `COMPRESS=xz`
   (smaller, slower) and `COMPRESS=gzip` (compatibility) are still available.
-
