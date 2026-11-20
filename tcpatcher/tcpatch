@@ -1,0 +1,143 @@
+#!/bin/bash
+# TcPatcher CLI - the update system for tacolinux
+set -euo pipefail
+
+# Remember whether the caller chose a home before we set the default below.
+HOME_EXPLICIT=0
+if [[ -n ${TCPATCH_HOME+x} ]]; then HOME_EXPLICIT=1; fi
+
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+LIBDIR="$(dirname "$SELF")/lib"
+
+# shellcheck source=lib/common.sh
+source "$LIBDIR/common.sh"
+# shellcheck source=lib/db.sh
+source "$LIBDIR/db.sh"
+# shellcheck source=lib/patch.sh
+source "$LIBDIR/patch.sh"
+# shellcheck source=lib/remote.sh
+source "$LIBDIR/remote.sh"
+
+trap patch_cleanup EXIT
+
+# Keep a handle on the real stdin for confirmation prompts.
+if ! exec 4<&0; then exec 4</dev/null; fi
+
+usage() {
+  cat <<'EOF'
+tcpatch - apply .tcpatch updates to a TacoLinux system
+
+Usage:
+  tcpatch apply --local PATH           apply a local patch file or directory
+  tcpatch apply all                    apply new patches from every remote
+  tcpatch apply REMOTE                 apply new patches from one remote
+  tcpatch apply REMOTE:PATCH           apply one patch from one remote
+  tcpatch subscribe URL                subscribe to a patch repository
+  tcpatch update                       same as: apply all
+  tcpatch new NAME [DIR]               create a new patch project
+  tcpatch build [DIR] [OUT]            build DIR into dist/NAME-PVER.tcpatch
+  tcpatch remotes                      list subscribed remotes
+  tcpatch remotes make NAME            create a remote skeleton repo
+  tcpatch status                       show system, database and remote status
+
+Options (anywhere):
+  --dry-run      show what would happen, change nothing
+  -f, --force    re-apply / ignore version mismatch
+  -y, --yes      assume yes for confirmation prompts
+      --root DIR  treat DIR as / (for testing and image builds)
+      --home DIR  store db.json and remotes in DIR
+  -h, --help     show this help
+
+Environment: TCPATCH_ROOT, TCPATCH_HOME
+EOF
+}
+
+ARGS=()
+while (( $# )); do
+  case "$1" in
+    --dry-run) DRY_RUN=1 ;;
+    -f|--force) FORCE=1 ;;
+    -y|--yes) ASSUME_YES=1 ;;
+    --root) [[ $# -ge 2 ]] || die "--root needs a path"; ROOT="${2%/}"; [[ -z $ROOT ]] && ROOT=/; shift ;;
+    --root=*) ROOT="${1#*=}"; ROOT="${ROOT%/}"; [[ -z $ROOT ]] && ROOT=/ ;;
+    --home) [[ $# -ge 2 ]] || die "--home needs a path"; TCPATCH_HOME="$2"; shift ;;
+    --home=*) TCPATCH_HOME="${1#*=}" ;;
+    -h|--help|help) usage; exit 0 ;;
+    *) ARGS+=("$1") ;;
+  esac
+  shift
+done
+if (( ${#ARGS[@]} )); then set -- "${ARGS[@]}"; else set --; fi
+
+# --root may have moved the target tree; recompute the default home.
+if [[ $HOME_EXPLICIT -eq 0 ]]; then TCPATCH_HOME="$(rpath usr/tcpatch)"; fi
+DB_FILE="$TCPATCH_HOME/db.json"
+REMOTE_HOME="$TCPATCH_HOME/remotes"
+
+status_cmd() {
+  local sysver d p count
+  sysver="$(system_version)"
+  info "TacoLinux version: $sysver"
+  if [[ -f $DB_FILE ]]; then
+    info "Patches applied:   $(db_count)"
+  else
+    info "Patches applied:   0"
+  fi
+  while IFS= read -r n; do
+    [[ -n $n ]] || continue
+    printf '  %-20s v%-8s %s\n' "$n" "$(db_get "$n" VER)" "$(db_get "$n" TLVER)"
+  done < <(db_list_names)
+  info "Remotes:"
+  local found=0
+  [[ -d $REMOTE_HOME ]] || { info "  (none)"; return 0; }
+  for d in "$REMOTE_HOME"/*; do
+    [[ -d $d ]] || continue
+    found=1
+    count=0
+    while IFS= read -r p; do
+      [[ -n $p ]] || continue
+      count=$((count + 1))
+    done < <(remote_patches "$d")
+    printf '  %-20s %s patch(es)  %s\n' "$(remote_name "$d")" "$count" "$(remote_url "$d")"
+  done
+  [[ $found -eq 1 ]] || info "  (none)"
+}
+
+cmd="${1:-}"
+[[ -n $cmd ]] || { usage; exit 1; }
+shift
+
+case "$cmd" in
+  apply)
+    case "${1:-}" in
+      --local|--file)
+        [[ $# -ge 2 ]] || die "usage: tcpatch apply --local PATH"
+        patch_apply "$2" "local"
+        ;;
+      all|update) apply_all_remotes ;;
+      "") usage >&2; exit 1 ;;
+      *) apply_remote "$1" ;;
+    esac
+    ;;
+  subscribe)
+    [[ $# -ge 1 ]] || die "usage: tcpatch subscribe URL"
+    remote_subscribe "$1"
+    ;;
+  update) apply_all_remotes ;;
+  new)
+    [[ $# -ge 1 ]] || die "usage: tcpatch new NAME [DIR]"
+    patch_new "$1" "${2:-$1}"
+    ;;
+  build)
+    patch_build "${1:-.}" "${2:-}"
+    ;;
+  remotes)
+    case "${1:-}" in
+      make) [[ $# -ge 2 ]] || die "usage: tcpatch remotes make NAME"; remote_make "$2" ;;
+      "") remote_list ;;
+      *) usage >&2; exit 1 ;;
+    esac
+    ;;
+  status) status_cmd ;;
+  *) die "unknown command: $cmd (try --help)" ;;
+esac

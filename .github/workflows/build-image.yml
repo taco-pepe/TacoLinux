@@ -43,7 +43,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             qemu-utils zstd xz-utils rsync e2fsprogs grub-pc-bin grub2-common \
-            util-linux fdisk
+            util-linux fdisk jq
+
+      - name: Test tcpatch
+        run: ./tcpatcher/tests/run-tests.sh
 
       - name: Compute version
         id: version

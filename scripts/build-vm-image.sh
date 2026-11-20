@@ -208,6 +208,20 @@ if [ -x "$MOUNT/usr/local/bin/makewhatis" ] && [ -d "$MOUNT/usr/share/man" ]; th
   "$MOUNT/usr/local/bin/makewhatis" "$MOUNT/usr/share/man" 2>/dev/null || true
 fi
 
+# --- install tcpatch (the TacoLinux updater) -------------------------------
+# tcpatch is a bash CLI that applies .tcpatch bundles to a root tree.  Its
+# sources live in tcpatcher/; install.sh stages the script under
+# /usr/lib/tcpatcher, symlinks /usr/local/bin/tcpatch, and seeds
+# /usr/distro/version.cfg from /etc/os-release on first install.  Run it here,
+# after ownership is fixed so every installed file is root-owned, and with the
+# same DESTDIR-style root the rest of the build uses.
+if [ -f "$REPO_ROOT/tcpatcher/install.sh" ]; then
+  log "installing tcpatch"
+  bash "$REPO_ROOT/tcpatcher/install.sh" "$MOUNT"
+else
+  die "tcpatcher/install.sh is missing - refusing to build an image without the updater"
+fi
+
 # sshd refuses to start unless its chroot directory is root-owned and not
 # group/world-writable ("/var/empty must be owned by root").
 mkdir -p "$MOUNT/var/empty"

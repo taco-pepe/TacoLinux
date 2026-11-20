@@ -287,6 +287,49 @@ the wizard saves a different distro.
 
 ---------
 
+## updating with tcpatch
+
+TacoLinux has no package manager, but it does have **tcpatch** — a small
+updater that applies `.tcpatch` bundles to the live root filesystem. The build
+installs it into every image (`/usr/local/bin/tcpatch` → `/usr/lib/tcpatcher/`),
+so it is ready to use on a fresh boot. It is a bash script, not a compiled
+binary: it uses the bundled `bash`, `jq`, `git`, `rsync`, `zstd` and `wget`.
+
+```sh
+tcpatch --help                       # full command list
+tcpatch status                       # system version, applied patches, remotes
+tcpatch apply --local ./foo.tcpatch  # apply one bundle from disk
+tcpatch update                       # apply new patches from every remote
+tcpatch update --dry-run             # show what would change, change nothing
+tcpatch subscribe https://…/patches.git
+tcpatch remotes                      # list subscriptions
+```
+
+A patch is a directory with a `patch.cfg` plus files laid out exactly as they
+should appear under `/`, plus an optional `remove.list` (one path per line).
+Build and distribute it as a single file:
+
+```sh
+tcpatch new my-patch                 # scaffold a patch project
+tcpatch build my-patch               # -> my-patch/dist/my-patch-<PVER>.tcpatch
+tcpatch apply --local my-patch/dist/my-patch-<PVER>.tcpatch
+```
+
+`patch.cfg` keys: `NAME`, `DES`, `PVER` (patch version), `TVER` (target
+TacoLinux version), `PERM` (`keep`, `allroot` or `alluser`) and `L` (licence).
+Config files are **parsed, never sourced**, so a remote's `patch.cfg` cannot
+run shell code. Removals are always confirmed one-by-one and default to *no*;
+every successful apply is recorded in `/usr/tcpatch/db.json`. The system
+version comes from `/usr/distro/version.cfg` (seeded from `/etc/os-release` at
+build time). Use `--force` to override a version mismatch and `--yes` to skip
+prompts.
+
+The full design, remote layout and `.tcpatch` file format live in
+`tcpatcher/README.md`; run the end-to-end suite with
+`./tcpatcher/tests/run-tests.sh`.
+
+---------
+
 ## prebuilt images
 
 There are two steps.  First install the desktop closure into `rootfs/` -- it

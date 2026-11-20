@@ -1,4 +1,4 @@
-.Dd November 19, 2026
+.Dd November 20, 2026
 .Dt TACOLINUX 7
 .Os TacoLinux
 .Sh NAME
@@ -55,11 +55,10 @@ yields a root shell without a prompt.
 is a static BusyBox binary installed setuid root; it asks for the target
 user's password.
 .Sh BUNDLED TOOLS
-Every program in
-.Pa /usr/local/bin
-is a fully static musl binary with no
+The command-line tools built from vendored sources are fully static musl
+binaries with no
 .Dv PT_INTERP ,
-so it runs on the base system, in a chroot, or in a future rootfs without
+so they run on the base system, in a chroot, or in a future rootfs without
 depending on the Nix store for a C library.
 .Pp
 The set includes editors
@@ -102,6 +101,45 @@ the text-mode browser, usable on a console or in a terminal.
 .It Li links Fl g
 the graphical browser, drawn with Links' built-in fonts on an X display.
 .El
+.Sh UPDATING
+.Nm tcpatch
+applies
+.Pa .tcpatch
+bundles to the live root filesystem.
+A bundle is a directory holding a
+.Pa patch.cfg
+and files laid out as they should appear under
+.Pa / ,
+plus an optional
+.Pa remove.list ;
+.Dl tcpatch build my-patch
+packs it into a single distributable file.
+.Bl -tag -width "tcpatch apply --local FILE" -compact
+.It Li tcpatch status
+show the system version, applied patches and subscribed remotes.
+.It Li tcpatch apply --local FILE
+apply a local bundle or patch directory.
+.It Li tcpatch update
+apply new patches from every subscribed remote.
+.It Li tcpatch subscribe URL
+subscribe to a git repository of patches.
+.El
+.Pp
+Add
+.Fl dry-run
+to preview changes without touching the system,
+.Fl force
+to ignore a version mismatch, and
+.Fl yes
+to skip confirmation prompts.
+Every removal is confirmed individually and defaults to no.
+Config files are parsed, never executed as shell code, so a remote cannot run
+arbitrary commands through its
+.Pa patch.cfg .
+The updater is a shell script that uses the bundled
+.Xr bash 1 ,
+.Xr jq 1 ,
+git, rsync, zstd and wget, so it needs no interpreter packages.
 .Sh INSTALLING
 Read
 .Pa README.md
@@ -156,6 +194,14 @@ statically linked CLI tools and the
 symlink.
 .It Pa /usr/local/share/tacolinux/cli-tools.txt
 list of shipped CLI binaries.
+.It Pa /usr/lib/tcpatcher/
+the tcpatch CLI and its libraries.
+.It Pa /usr/local/bin/tcpatch
+symlink to the updater.
+.It Pa /usr/tcpatch/db.json
+database of applied patches.
+.It Pa /usr/distro/version.cfg
+system version used for patch compatibility checks.
 .It Pa /usr/share/man/man7/tacolinux.7
 this manual page.
 .It Pa /scripts/build-vm-image.sh

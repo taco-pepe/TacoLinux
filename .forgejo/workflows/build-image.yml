@@ -37,14 +37,17 @@ jobs:
           if command -v apt-get >/dev/null; then
             $SUDO apt-get update
             $SUDO apt-get install -y --no-install-recommends \
-              qemu-utils zstd rsync e2fsprogs grub-pc-bin grub2-common util-linux fdisk
+              qemu-utils zstd rsync e2fsprogs grub-pc-bin grub2-common util-linux fdisk jq
           elif command -v dnf >/dev/null; then
             $SUDO dnf install -y qemu-img zstd rsync e2fsprogs grub2-pc \
-              grub2-tools util-linux
+              grub2-tools util-linux jq
           else
-            echo "install qemu-img, zstd, rsync, e2fsprogs, grub2 and util-linux" >&2
+            echo "install qemu-img, zstd, rsync, e2fsprogs, grub2, util-linux and jq" >&2
             exit 1
           fi
+
+      - name: Test tcpatch
+        run: ./tcpatcher/tests/run-tests.sh
 
       - name: Compute version
         id: version
