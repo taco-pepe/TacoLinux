@@ -301,9 +301,13 @@ tcpatch status                       # system version, applied patches, remotes
 tcpatch apply --local ./foo.tcpatch  # apply one bundle from disk
 tcpatch update                       # apply new patches from every remote
 tcpatch update --dry-run             # show what would change, change nothing
-tcpatch subscribe https://…/patches.git
+tcpatch subscribe https://github.com/taco-pepe/tcpatch-main.git
 tcpatch remotes                      # list subscriptions
 ```
+
+Official TacoLinux patch packages are published at
+<https://github.com/taco-pepe/tcpatch-main>; subscribe to that repo to receive
+updates with `tcpatch update`.
 
 A patch is a directory with a `patch.cfg` plus files laid out exactly as they
 should appear under `/`, plus an optional `remove.list` (one path per line).

@@ -65,6 +65,13 @@ RP="ssh" # remote protocal. will be used to fetch patches from the repo. git is 
 RVER=1.0.0 # remote version.
 ```
 
+Official TacoLinux patch packages are published at
+<https://github.com/taco-pepe/tcpatch-main>. Subscribe with:
+
+```sh
+tcpatch subscribe https://github.com/taco-pepe/tcpatch-main.git
+```
+
 # How patches are applyed
 
 by rsyncing the files to the / dir of tacolinux. simple and easy.  
